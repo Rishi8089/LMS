@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { setEmployee } from "../redux/employeeSlice.js";
 
-const getCurrentEmployee = () => {
+const getCurrentEmployee = (isLoggedIn) => {
   const dispatch = useDispatch();
   const employee = useSelector((state) => state.employee.employee);
 
@@ -25,10 +25,10 @@ const getCurrentEmployee = () => {
       }
     };
 
-    if (!employee) {
+    if (isLoggedIn && !employee) {
       fetchEmployee();
     }
-  }, [dispatch, employee]); // ✅ add dependencies
+  }, [dispatch, employee, isLoggedIn]); // ✅ add dependencies
 
   return employee; // ✅ always return the redux state
 };

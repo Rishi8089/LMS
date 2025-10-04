@@ -18,7 +18,7 @@ employeeRoute.get("/current-employee", isAuth, getCurrentEmployee);
 employeeRoute.post("/enroll-course/:id", enrollCourse);
 
 // ✅ Get all enrolled courses for an employee
-employeeRoute.get("/enrolled-courses",enrolledCourses);
+employeeRoute.get("/enrolled-courses", isAuth, enrolledCourses);
 
 
 employeeRoute.get("/:id", getEmployeeById); // keep last

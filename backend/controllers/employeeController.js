@@ -1,6 +1,6 @@
 import Employee from "../models/EmployeeModel.js";
 import Course from "../models/CourseModel.js";
-import { isAuth } from "../middleware/authMiddleware.js";
+import { isAuth } from "../middleware/isAuth.js";
 
 
 export const getCurrentEmployee = async (req, res) => {
@@ -25,8 +25,7 @@ export const addEmployee = async (req, res) => {
         if (!name || !email) {
             return res.status(400).json({ message: "Name and email are required" });
         }
-        const existingEmployee = await Employee.findOne({ email
-    });
+        const existingEmployee = await Employee.findOne({ email });
         if (existingEmployee) {
             return res.status(400).json({ message: "Employee with this email already exists" });
         }
@@ -78,12 +77,7 @@ export const enrollCourse = async (req, res) => {
 
 export const enrolledCourses = async (req, res) => {
     try {
-        const currentEmployee = getCurrentEmployee(); // Employee ID
-        const id = currentEmployee.id;
-
-        if (!id) {
-            return res.status(400).json({ success: false, message: "Employee ID is required" });
-        }
+        const id = req.employee.id;
 
         // Find employee and populate enrolled courses
         const employee = await Employee.findById(id).populate("enrolledCourses");
