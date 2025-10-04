@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import getCurrentEmployee from "../customHook/getCurrentEmployee.js";
+import { useAuth } from "../context/authContext.jsx";
 
 const CourseCard = ({ _id, images, title, hours, description, difficulty, mandatory }) => {
   const [enrolling, setEnrolling] = useState(false);
-  const employee = getCurrentEmployee();
+  const { isLoggedIn } = useAuth();
+  const employee = getCurrentEmployee(isLoggedIn);
 
   const getDifficultyColor = (level) => {
     switch (level.toLowerCase()) {

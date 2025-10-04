@@ -3,18 +3,18 @@ import { CgProfile } from "react-icons/cg";
 import { IoIosLogOut } from "react-icons/io";
 import { toast } from "react-toastify";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "../context/authContext.jsx"; 
+import { useAuth } from "../context/authContext.jsx";
 import getCurrentEmployee from "../customHook/getCurrentEmployee.js"; // ✅ use hook
 
 const Navbar = () => {
-  const employee = getCurrentEmployee(); // ✅ fetch + subscribe to redux employee
+  // ✅ Get global auth state from context
+  const { logout, user, isLoggedIn } = useAuth();
+
+  const employee = getCurrentEmployee(isLoggedIn); // ✅ fetch + subscribe to redux employee
 
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null); 
+  const dropdownRef = useRef(null);
   const navigate = useNavigate();
-
-  // ✅ Get global auth state from context
-  const { logout, user } = useAuth();
 
   // ✅ Toggle dropdown
   const toggleDropdown = () => setIsOpen((prev) => !prev);
