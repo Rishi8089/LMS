@@ -8,6 +8,11 @@ const getCurrentEmployee = (isLoggedIn) => {
   const employee = useSelector((state) => state.employee.employee);
 
   useEffect(() => {
+    if (!isLoggedIn) {
+      dispatch(setEmployee(null)); // Clear employee data when not logged in
+      return;
+    }
+
     const fetchEmployee = async () => {
       try {
         const result = await axios.get(
