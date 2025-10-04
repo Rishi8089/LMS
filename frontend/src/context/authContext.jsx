@@ -74,6 +74,8 @@ export const AuthProvider = ({ children }) => {
     loading,
   };
 
+
+  // extra space
   return (
     <AuthContext.Provider value={contextValue}>
       {!loading && children}
