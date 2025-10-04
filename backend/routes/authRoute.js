@@ -1,6 +1,6 @@
 import express from 'express';
 // Ensure your import paths are correct based on your file structure
-import { login, register, logout, me } from "../controllers/authController.js";
+import { login, register, logout, me, check } from "../controllers/authController.js";
 import isAuth from '../middleware/isAuth.js';
 
 
@@ -13,11 +13,10 @@ authRoute.post('/login', login);
 authRoute.post("/register", register);
 
 // Route for user logout (GET is common, but POST is often a better practice)
-authRoute.get('/logout', logout); 
+authRoute.get('/logout', logout);
 
-// Route to get the currently authenticated user's details.
-// It uses the isAuth middleware to protect the route and ensure a valid session/token.
-authRoute.get('/check', isAuth, me); 
+// Route to check authentication status
+authRoute.get('/check', check);
 
 
 export default authRoute;

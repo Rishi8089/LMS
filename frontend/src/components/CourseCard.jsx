@@ -1,8 +1,11 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
+import getCurrentEmployee from "../customHook/getCurrentEmployee.js";
 
-const CourseCard = ({ id, images, title, hours, description, difficulty, mandatory }) => {
-  const navigate = useNavigate();
+const CourseCard = ({ _id, images, title, hours, description, difficulty, mandatory }) => {
+  const [enrolling, setEnrolling] = useState(false);
+  const employee = getCurrentEmployee();
 
   const getDifficultyColor = (level) => {
     switch (level.toLowerCase()) {
@@ -17,11 +20,31 @@ const CourseCard = ({ id, images, title, hours, description, difficulty, mandato
     }
   };
 
+  const handleEnroll = async () => {
+    if (!employee || !_id) return;
+
+    setEnrolling(true);
+    try {
+      const response = await axios.post(
+        `http://localhost:8000/api/employee/enroll-course/${employee._id}`,
+        { courseId: _id },
+        { withCredentials: true }
+      );
+      if (response.data.success) {
+        toast.success("Enrolled successfully!");
+      } else {
+        toast.error(response.data.message || "Enrollment failed");
+      }
+    } catch (error) {
+      console.error("Enrollment error:", error);
+      toast.error(error.response?.data?.message || "Enrollment failed");
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
   return (
-    <div
-      onClick={() => navigate(`/course/${title}`)}
-      className={`ml-8 cursor-pointer bg-white rounded-xl overflow-hidden shadow-md transform transition duration-300 hover:scale-95 hover:shadow-xl w-70 h-80 relative`}
-    >
+    <div className={`ml-8 bg-white rounded-xl overflow-hidden shadow-md transform transition duration-300 hover:scale-95 hover:shadow-xl w-70 h-80 relative`}>
       <img src={images} alt={title} className="w-full h-40 object-cover" />
 
       {/* Mandatory badge (top-left corner) */}
@@ -45,6 +68,15 @@ const CourseCard = ({ id, images, title, hours, description, difficulty, mandato
 
         <p className="text-sm text-gray-500">{hours} Hours</p>
         <p className="text-gray-600 text-sm line-clamp-2">{description}</p>
+
+        {/* Enroll button */}
+        <button
+          onClick={handleEnroll}
+          disabled={enrolling || !employee}
+          className="mt-2 w-full bg-black text-white py-2 rounded-full hover:bg-gray-800 disabled:bg-gray-400 transition-colors"
+        >
+          {enrolling ? "Enrolling..." : "Enroll"}
+        </button>
       </div>
     </div>
   );

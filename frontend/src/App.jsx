@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useContext } from "react";
 import { Routes, Route } from "react-router-dom";
 import Home from "./pages/Home.jsx";
 import Navbar from "./components/Navbar.jsx";
@@ -9,13 +9,16 @@ import { ToastContainer } from "react-toastify";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import PublicRoute from "./components/PublicRoute.jsx";
 // This hook must contain its API call inside a useEffect to prevent an infinite loop
-import getCurrentEmployee from "./customHook/getCurrentEmployee.js"; 
+import getCurrentEmployee from "./customHook/getCurrentEmployee.js";
+import { AuthContext } from "./context/authContext.jsx";
 
 export const serverUrl = "http://localhost:8000";
 
 const App = () => {
-  // Call the custom hook here. The hook itself must use useEffect with an empty dependency array to run only on mount.
-  getCurrentEmployee();
+  const { isLoggedIn } = useContext(AuthContext);
+
+  // Call the custom hook with isLoggedIn status
+  getCurrentEmployee(isLoggedIn);
 
   return (
     <>

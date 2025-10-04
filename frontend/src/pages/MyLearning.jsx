@@ -10,10 +10,26 @@ const MyLearning = () => {
   const [courses, setCourses] = useState([]); // ✅ renamed to courses
   const employee = getCurrentEmployee();
 
-  console.log("Current Employee in MyLearning:", employee);
+  useEffect(() => {
+    const fetchEnrolledCourses = async () => {
+      try {
+        const response = await axios.get(
+          "http://localhost:8000/api/employee/enrolled-courses",
+          { withCredentials: true }
+        );
+        if (response.data.success) {
+          setCourses(response.data.courses);
+        } else {
+          setCourses([]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch enrolled courses:", error);
+        setCourses([]);
+      }
+    };
 
-  
-
+    fetchEnrolledCourses();
+  }, []);
 
   // Filtering logic
   const filteredCourses = courses.filter((course) => {
@@ -53,8 +69,8 @@ const MyLearning = () => {
         {filteredCourses.length > 0 ? (
           filteredCourses.map((course) => (
             <MyLearningCourseCard
-              key={course.id}
-              image={course.image}
+              key={course._id}
+              image={course.images}
               title={course.title}
               difficulty={course.difficulty}
               hours={course.hours}
