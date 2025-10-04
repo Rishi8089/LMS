@@ -36,39 +36,66 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: "Email and password required" });
 
+    // 1️⃣ Find employee
     const employee = await Employee.findOne({ email });
-    if (!employee) return res.status(401).json({ message: "Invalid credentials" });
+    if (!employee) return res.status(401).json({ message: "Invalid email or password" });
 
+    // 2️⃣ Check password
     const isMatch = await bcrypt.compare(password, employee.password);
-    if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+    if (!isMatch) return res.status(401).json({ message: "Invalid email or password" });
 
-    const token = generateToken(employee);
-    res.cookie("token", token, cookieOptions());
-    res.status(200).json({ success: true, employee: { id: employee._id, email: employee.email, name: employee.name } });
-  } catch (err) {
-    console.error(err);
+    // 3️⃣ Create JWT
+    const token = jwt.sign({ id: employee._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+    // 4️⃣ Send cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // 5️⃣ Return user info (optional)
+    res.status(200).json({
+      message: "Login successful",
+      user: {
+        id: employee._id,
+        name: employee.name,
+        email: employee.email,
+      },
+      token, // optional if you want localStorage version too
+    });
+  } catch (error) {
+    console.error("Login error:", error);
     res.status(500).json({ message: "Server error" });
   }
-  const token = localStorage.getItem("token");
-  console.log("Token from localStorage:", token);
 };
 
 export const logout = async (req, res) => {
   try {
     // Clear the cookie
+  
     res.clearCookie("token", {
       httpOnly: true,
+      secure:true,
       sameSite: "lax",
     });
 
-    res.status(200).json({ success: true, message: "Logged out successfully" });
+    return res.status(200).json({
+      success: true,
+      message: "Logged out successfully",
+    });
   } catch (err) {
     console.error("Logout error:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Server error during logout",
+    });
   }
 };
+
+
 
 
 export const me = async (req, res) => {
@@ -118,10 +145,19 @@ export const me = async (req, res) => {
 
 export const check = async (req, res) => {
   try {
-    // If we reach here, isAuth middleware has verified the token
-    res.json({ loggedIn: true, user: req.employee });
+    const token =
+      req.cookies?.token || req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(200).json({ loggedIn: false });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const employee = await Employee.findById(decoded.id).select("-password");
+    if (!employee) {
+      return res.status(200).json({ loggedIn: false });
+    }
+    res.status(200).json({ loggedIn: true, user: employee });
   } catch (err) {
     console.error("Check auth error:", err);
-    res.status(500).json({ loggedIn: false, message: "Server error" });
+    res.status(200).json({ loggedIn: false });
   }
 };

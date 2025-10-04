@@ -3,15 +3,18 @@ import { CgProfile } from "react-icons/cg";
 import { IoIosLogOut } from "react-icons/io";
 import { toast } from "react-toastify";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "../context/authContext.jsx"; // ✅ import your custom hook
+import { useAuth } from "../context/authContext.jsx"; 
+import getCurrentEmployee from "../customHook/getCurrentEmployee.js"; // ✅ use hook
 
 const Navbar = () => {
+  const employee = getCurrentEmployee(); // ✅ fetch + subscribe to redux employee
+
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null);
+  const dropdownRef = useRef(null); 
   const navigate = useNavigate();
 
   // ✅ Get global auth state from context
-  const { isLoggedIn, logout, user } = useAuth();
+  const { logout, user } = useAuth();
 
   // ✅ Toggle dropdown
   const toggleDropdown = () => setIsOpen((prev) => !prev);
@@ -27,17 +30,22 @@ const Navbar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ✅ Logout handler (use global logout)
+  // ✅ Logout handler  
   const handleLogout = async () => {
     try {
-      await logout(); // context logout already calls API + clears state
+      // ✅ CORRECTED: Await the async function to ensure the API call completes
+      // and the state/cookies are cleared BEFORE navigating.
+      await logout(); 
+      
+      // These lines only run AFTER the cookies are cleared successfully
       toast.success("Logged out successfully");
       navigate("/login");
     } catch (error) {
+      // This block runs if the network call or the clearing process fails
       console.error("Logout failed:", error);
       toast.error("Logout failed. Please try again.");
     }
-  };
+};
 
   return (
     <div className="top-0 left-0 w-full h-16 bg-white shadow-md border-b flex items-center justify-between px-6 sm:px-20 z-50">
@@ -49,8 +57,8 @@ const Navbar = () => {
         Strategy Boolean
       </div>
 
-      {/* Center - Links (only when logged in) */}
-      {isLoggedIn && (
+      {/* Center - Links (only when employee is available) */}
+      {employee && (
         <nav>
           <ul className="flex space-x-8 text-gray-700 font-medium">
             <li>
@@ -80,7 +88,7 @@ const Navbar = () => {
       )}
 
       {/* Right - Profile Button */}
-      {isLoggedIn && (
+      {employee && (
         <div className="relative" ref={dropdownRef}>
           <button
             className="cursor-pointer flex items-center gap-2 bg-black text-white px-4 py-2 rounded-3xl shadow 
@@ -88,7 +96,7 @@ const Navbar = () => {
             onClick={toggleDropdown}
           >
             <CgProfile className="h-5 w-5" />
-            <span>{user?.name || "Profile"}</span>
+            <span>{employee?.name || user?.name || "Profile"}</span>
           </button>
 
           {/* Dropdown */}
@@ -106,11 +114,12 @@ const Navbar = () => {
                   <CgProfile className="w-5 h-5" />
                   Profile
                 </button>
+
                 {/* Logout Item */}
                 <button
                   onClick={() => {
-                    setIsOpen(false); // close dropdown
-                    handleLogout(); // then logout
+                    setIsOpen(false);
+                    handleLogout();
                   }}
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-gray-100 hover:text-red-800"
                 >

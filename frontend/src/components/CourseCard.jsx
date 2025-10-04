@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-const CourseCard = ({ id, image, title, hours, description, difficulty, mandatory }) => {
+const CourseCard = ({ id, images, title, hours, description, difficulty, mandatory }) => {
   const navigate = useNavigate();
 
   const getDifficultyColor = (level) => {
@@ -22,7 +22,7 @@ const CourseCard = ({ id, image, title, hours, description, difficulty, mandator
       onClick={() => navigate(`/course/${title}`)}
       className={`ml-8 cursor-pointer bg-white rounded-xl overflow-hidden shadow-md transform transition duration-300 hover:scale-95 hover:shadow-xl w-70 h-80 relative`}
     >
-      <img src={image} alt={title} className="w-full h-40 object-cover" />
+      <img src={images} alt={title} className="w-full h-40 object-cover" />
 
       {/* Mandatory badge (top-left corner) */}
       {mandatory && (

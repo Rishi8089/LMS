@@ -4,7 +4,8 @@ import axios from "axios";
 import { serverUrl } from "../App";
 import { toast } from "react-toastify";
 import { ClipLoader } from "react-spinners";
-import { useAuth } from "../context/authContext.jsx"; // ✅ import auth hook
+import { useAuth } from "../context/authContext.jsx";
+import getCurrentEmployee from "../customHook/getCurrentEmployee.js";
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
@@ -14,12 +15,11 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { isLoggedIn, login } = useAuth();
 
-  // ✅ Block login page if already logged in OR token exists
+  const employee = getCurrentEmployee();
+
+  // ✅ Redirect if already logged in or employee exists
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    console.log("Token on login page:", token);
-    console.log("isLoggedIn on login page:", isLoggedIn);
-    if (isLoggedIn || token) {
+    if (isLoggedIn ) {
       navigate("/");
     }
   }, [isLoggedIn, navigate]);
@@ -31,28 +31,27 @@ const LoginPage = () => {
     }
 
     setLoading(true);
-
     try {
       const response = await axios.post(
         `${serverUrl}/api/auth/login`,
         { email, password },
-        { withCredentials: true }
+        { withCredentials: true } // must be true for cookies
       );
+
+      console.log("Login response:", response.data);
 
       if (response.status === 200) {
         toast.success("Login Successful");
 
-        // ✅ Save token if backend sends one
-        if (response.data.token) {
-          localStorage.setItem("token", response.data.token);
-        }
+        // ✅ login in auth context
+        if (response.data.user) login(response.data.user);
 
-        login(response.data.user); 
+        // ✅ current employee will automatically be fetched via getCurrentEmployee hook
         navigate("/");
       }
     } catch (error) {
-      console.error(error);
-      toast.error(error?.response?.data?.message || "Login failed");
+      console.error("Login failed response:", error.response?.data);
+      toast.error(error.response?.data?.message || "Login failed");
     } finally {
       setLoading(false);
     }

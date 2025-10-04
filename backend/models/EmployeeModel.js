@@ -23,10 +23,13 @@ const EmployeeSchema = new mongoose.Schema({
         required: false,
         default: ""
     },
-    enrolledCourses:[{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Course"
-    }]
+    enrolledCourses: [
+  {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Course", // ✅ should match model name in CourseModel.js
+  }
+]
+
 }, { timestamps: true });
 
 const Employee = mongoose.model('Employee', EmployeeSchema);

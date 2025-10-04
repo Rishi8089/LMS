@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }) => {
   // --- Logout (clear cookie on backend + reset state) ---
   const logout = async () => {
     try {
-      await axios.post(`${serverUrl}/api/auth/logout`, {}, { // 🔹 use POST instead of GET
+      await axios.get(`${serverUrl}/api/auth/logout`, { // 🔹 use POST instead of GET
         withCredentials: true,
       });
     } catch (error) {
