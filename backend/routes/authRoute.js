@@ -12,8 +12,8 @@ authRoute.post('/login', login);
 // Route for user registration/signup (typically POST)
 authRoute.post("/register", register);
 
-// Route for user logout (GET is common, but POST is often a better practice)
-authRoute.get('/logout', logout);
+// Route for user logout (POST is a better practice)
+authRoute.post('/logout', logout);
 
 // Route to check authentication status
 authRoute.get('/check', check);

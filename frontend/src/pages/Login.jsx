@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { serverUrl } from "../App";
+import { serverUrl } from "../config.js";
 import { toast } from "react-toastify";
 import { ClipLoader } from "react-spinners";
 import { useAuth } from "../context/authContext.jsx";

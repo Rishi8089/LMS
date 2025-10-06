@@ -12,7 +12,8 @@ const EmployeeSchema = new mongoose.Schema({
     },
     phone: {
         type: String,
-        required: true
+        required: false,
+        default: ""
     },
     password: {
         type: String,
@@ -25,8 +26,24 @@ const EmployeeSchema = new mongoose.Schema({
     },
     enrolledCourses: [
   {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Course", // ✅ should match model name in CourseModel.js
+    course: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      required: false
+    },
+    enrollmentDate: {
+      type: Date,
+      default: Date.now
+    },
+    dueDate: {
+      type: Date,
+      default: null
+    },
+    status: {
+      type: String,
+      enum: ['enrolled', 'completed'],
+      default: 'enrolled'
+    }
   }
 ]
 

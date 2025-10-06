@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { setEmployee } from "../redux/employeeSlice.js";
+import { serverUrl } from "../config.js";
 
 const getCurrentEmployee = (isLoggedIn) => {
   const dispatch = useDispatch();
@@ -16,10 +17,10 @@ const getCurrentEmployee = (isLoggedIn) => {
     const fetchEmployee = async () => {
       try {
         const result = await axios.get(
-          "http://localhost:8000/api/employee/current-employee",
+          `${serverUrl}/api/employee/current-employee`,
           { withCredentials: true }
         );
-        dispatch(setEmployee(result.data)); // ✅ update redux state
+        dispatch(setEmployee(result.data.employee)); // ✅ update redux state
       } catch (error) {
         if (
           error.response &&

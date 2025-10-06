@@ -1,7 +1,7 @@
 // contexts/AuthContext.jsx
 import React, { createContext, useState, useEffect, useContext } from "react";
 import axios from "axios";
-import { serverUrl } from "../App"; 
+import { serverUrl } from "../config.js";
 
 // 1. Create the AuthContext
 export const AuthContext = createContext({
@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }) => {
   // --- Logout (clear cookie on backend + reset state) ---
   const logout = async () => {
     try {
-      await axios.get(`${serverUrl}/api/auth/logout`, { // 🔹 use POST instead of GET
+      await axios.post(`${serverUrl}/api/auth/logout`, {
         withCredentials: true,
       });
     } catch (error) {

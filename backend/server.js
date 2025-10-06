@@ -18,10 +18,10 @@ app.use(cors({
     origin: "http://localhost:5173",
     credentials: true,
 }));
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 8000;
 
 app.listen(PORT, () => {
-    console.log("Server is running");
+    console.log(`Server is running on port ${PORT}`);
     connectDB();
 });
 

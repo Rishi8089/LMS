@@ -1,15 +1,19 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 import getCurrentEmployee from "../customHook/getCurrentEmployee.js";
 import { useAuth } from "../context/authContext.jsx";
+import { serverUrl } from "../config.js";
 
 const CourseCard = ({ _id, images, title, hours, description, difficulty, mandatory }) => {
   const [enrolling, setEnrolling] = useState(false);
   const { isLoggedIn } = useAuth();
   const employee = getCurrentEmployee(isLoggedIn);
+  const navigate = useNavigate();
 
-  const getDifficultyColor = (level) => {
+  // ✅ Color helper for difficulty badge
+  const getDifficultyColor = (level = "") => {
     switch (level.toLowerCase()) {
       case "beginner":
         return "bg-green-100 text-green-700";
@@ -22,16 +26,17 @@ const CourseCard = ({ _id, images, title, hours, description, difficulty, mandat
     }
   };
 
+  // ✅ Optional: Keep enroll functionality for reuse
   const handleEnroll = async () => {
     if (!employee || !_id) return;
-
     setEnrolling(true);
     try {
       const response = await axios.post(
-        `http://localhost:8000/api/employee/enroll-course/${employee._id}`,
+        `${serverUrl}/api/employee/enroll-course/${employee._id}`,
         { courseId: _id },
         { withCredentials: true }
       );
+
       if (response.data.success) {
         toast.success("Enrolled successfully!");
       } else {
@@ -45,11 +50,19 @@ const CourseCard = ({ _id, images, title, hours, description, difficulty, mandat
     }
   };
 
+  // ✅ Navigate to course details when card is clicked
+  const handleCardClick = () => {
+    navigate(`/course/${_id}`);
+  };
+
   return (
-    <div className={`ml-8 bg-white rounded-xl overflow-hidden shadow-md transform transition duration-300 hover:scale-95 hover:shadow-xl w-70 h-80 relative`}>
+    <div
+      onClick={handleCardClick}
+      className="ml-8 bg-white rounded-xl overflow-hidden shadow-md transform transition duration-300 hover:scale-95 hover:shadow-xl w-70 h-80 relative cursor-pointer"
+    >
       <img src={images} alt={title} className="w-full h-40 object-cover" />
 
-      {/* Mandatory badge (top-left corner) */}
+      {/* Mandatory badge */}
       {mandatory && (
         <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-3 py-1 rounded-full shadow">
           Mandatory
@@ -70,15 +83,6 @@ const CourseCard = ({ _id, images, title, hours, description, difficulty, mandat
 
         <p className="text-sm text-gray-500">{hours} Hours</p>
         <p className="text-gray-600 text-sm line-clamp-2">{description}</p>
-
-        {/* Enroll button */}
-        <button
-          onClick={handleEnroll}
-          disabled={enrolling || !employee}
-          className="mt-2 w-full bg-black text-white py-2 rounded-full hover:bg-gray-800 disabled:bg-gray-400 transition-colors"
-        >
-          {enrolling ? "Enrolling..." : "Enroll"}
-        </button>
       </div>
     </div>
   );

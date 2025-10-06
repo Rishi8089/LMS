@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import SearchBar from "../components/SearchBar.jsx";
 import CourseCard from "../components/CourseCard.jsx";
 import { useNavigate } from "react-router-dom";
+import { serverUrl } from "../config.js";
 
 // const courses = [
 //   {
@@ -89,23 +90,27 @@ const Home = () => {
   const [difficultyFilter, setDifficultyFilter] = useState("all");
 
   const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchCourses = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${serverUrl}/api/courses`);
+      const data = await response.json();
+      if (data.success) {
+        setCourses(data.courses);
+        // console.log("Fetched Courses:", data.courses);
+      } else {
+        console.error("Failed to fetch courses");
+      }
+    } catch (error) {
+      console.error("Error fetching courses:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchCourses = async () => {
-      try {
-        const response = await fetch("http://localhost:8000/api/courses");
-        const data = await response.json();
-        if (data.success) {
-          setCourses(data.courses);
-          // console.log("Fetched Courses:", data.courses);
-        } else {
-          console.error("Failed to fetch courses");
-        }
-      } catch (error) {
-        console.error("Error fetching courses:", error);
-      }
-    };
-
     fetchCourses();
   }, []);
 
@@ -143,19 +148,21 @@ const Home = () => {
         difficultyFilter={difficultyFilter}
         setDifficultyFilter={setDifficultyFilter}
       />
-
-      {/* Grid layout for courses */}
-      <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-        {filteredCourses.length > 0 ? (
-          filteredCourses.map((course) => (
-            <CourseCard key={course._id} {...course} />
-          ))
-        ) : (
-          <p className="col-span-full text-center text-gray-500">
-            No courses found.
-          </p>
-        )}
-      </div>
+      {loading ? (
+        <div className="text-center text-gray-500 font-semibold mt-10">Loading courses...</div>
+      ) : (
+        <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          {filteredCourses.length > 0 ? (
+            filteredCourses.map((course) => (
+              <CourseCard key={course._id} {...course} onEnroll={fetchCourses} />
+            ))
+          ) : (
+            <p className="col-span-full text-center text-gray-500">
+              No courses found.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Explore More button */}
       <div className="flex justify-center mt-10">

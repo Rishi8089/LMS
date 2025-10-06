@@ -1,20 +1,17 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
 
-const MyLearningCourseCard = ({ 
+const MyLearningCourseCard = ({
   image,
   title,
   difficulty,
   hours,
   description,
-  progress = 60,
-  mandatory = false,
-  courseId,
+  progress,
+  mandatory,
+  dueDate,
 }) => {
-  const navigate = useNavigate();
-
   const getDifficultyColor = (level) => {
-    switch (level.toLowerCase()) {
+    switch (level?.toLowerCase()) {
       case "beginner":
         return "bg-green-100 text-green-700";
       case "intermediate":
@@ -25,58 +22,71 @@ const MyLearningCourseCard = ({
         return "bg-gray-100 text-gray-700";
     }
   };
-    
+
+  const formatDueDate = (date) => {
+    if (!date) return "No due date";
+    const due = new Date(date);
+    const now = new Date();
+    const diffTime = due - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return "Overdue";
+    if (diffDays === 0) return "Due today";
+    if (diffDays === 1) return "Due tomorrow";
+    return `Due in ${diffDays} days`;
+  };
+
   return (
-    <div 
-      className="flex flex-col w-200 sm:flex-row items-stretch bg-white rounded-2xl shadow-md overflow-hidden hover:scale-105 transition-transform duration-300 cursor-pointer"
-      onClick={() => navigate(`/mylearning/${title}`)}
-    >
-      
-      {/* Left: Image */}
-      <div className="relative w-40 sm:w-40 sm:min-w-[160px] h-48 sm:h-auto flex-shrink-0">
-        <img
-          src={image}
-          alt={title}
-          className="h-full w-full object-cover"
-        />
-        {/* Mandatory Badge */}
-        {mandatory && (
-         <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-3 py-1 rounded-full shadow">
-          Mandatory
-        </span>
-        )}
-      </div>
-
-      {/* Middle: Course Info */}
-      <div className="flex-1 p-4 flex flex-col justify-between">
-        {/* Title + Hours */}
-        <div className="flex flex-wrap justify-between items-center gap-2">
-          <h3 className="text-lg font-bold text-gray-900">
-            {title}{" "}
-            <span className={`font-medium px-2 py-1 rounded-full ${getDifficultyColor(difficulty)}`}>
-              {difficulty}
-            </span>
-          </h3>
-          <p className="text-sm font-semibold text-gray-800 sm:border-l sm:pl-2">
-            {hours} hrs.
-          </p>
+    <div className="bg-white rounded-xl overflow-hidden shadow-md transform transition duration-300 hover:scale-95 hover:shadow-xl w-full max-w-4xl">
+      <div className="flex flex-col md:flex-row">
+        {/* Image */}
+        <div className="md:w-1/3">
+          <img src={image} alt={title} className="w-full h-48 md:h-full object-cover" />
         </div>
 
-        {/* Description */}
-        <p className="mt-2 text-sm text-gray-600">{description}</p>
+        {/* Content */}
+        <div className="md:w-2/3 p-6 flex flex-col justify-between">
+          <div>
+            {/* Title and Difficulty */}
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
+              <span
+                className={`text-xs font-medium px-2 py-1 rounded-full ${getDifficultyColor(difficulty)}`}
+              >
+                {difficulty}
+              </span>
+            </div>
 
-        {/* Progress bar */}
-        <div className="mt-3 w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-          <div
-            className="h-1.5 bg-blue-500"
-            style={{ width: `${progress}%` }}
-          />
+            {/* Hours and Mandatory */}
+            <div className="flex items-center gap-4 mb-2">
+              <p className="text-sm text-gray-500">{hours} Hours</p>
+              {mandatory && (
+                <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full">
+                  Mandatory
+                </span>
+              )}
+            </div>
+
+            {/* Description */}
+            <p className="text-gray-600 text-sm mb-4 line-clamp-2">{description}</p>
+
+            {/* Due Date */}
+            <p className="text-sm text-gray-500 mb-4">{formatDueDate(dueDate)}</p>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mt-4">
+            <div className="flex justify-between text-sm text-gray-600 mb-1">
+              <span>Progress</span>
+              <span>{progress || 0}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${progress || 0}%` }}
+              ></div>
+            </div>
+          </div>
         </div>
-      </div>
-
-      {/* Right: Arrow Section */}
-      <div className="flex items-center justify-center w-full sm:w-12 h-12 sm:h-auto bg-black text-white">
-        <span className="text-2xl font-bold">›</span>
       </div>
     </div>
   );
