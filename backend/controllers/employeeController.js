@@ -95,3 +95,21 @@ export const enrolledCourses = async (req, res) => {
         res.status(500).json({ success: false, message: "Server error" });
     }
 };
+
+export const checkEnrollment = async (req, res) => {
+    try {
+        const { employeeId, courseId } = req.params;
+        const employee = await Employee.findById(employeeId);
+
+        if (!employee) {
+            return res.status(404).json({ success: false, message: "Employee not found" });
+        }
+
+        const isEnrolled = employee.enrolledCourses.some(ec => ec.course.toString() === courseId);
+
+        res.status(200).json({ success: true, enrolled: isEnrolled });
+    } catch (err) {
+        console.error("Error checking enrollment:", err);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+};
