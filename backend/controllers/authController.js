@@ -1,163 +1,188 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import validator from "validator";
 import Employee from "../models/EmployeeModel.js";
+import Course from "../models/CourseModel.js";
 
-const cookieOptions = () => ({
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-  maxAge: 1000 * 60 * 60 * 24, // 1 day
+// Unified helper function for consistent cookie settings
+const cookieOptions = (days = 1) => ({
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    // Use 'none' for cross-site (production front-end on different domain)
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", 
+    maxAge: days * 24 * 60 * 60 * 1000, // days * hours * minutes * seconds * milliseconds
 });
 
+// Helper function for token generation
 const generateToken = (employee) => {
-  return jwt.sign({ id: employee._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+    // Note: '1d' token lifetime is for register/login success
+    return jwt.sign({ id: employee._id }, process.env.JWT_SECRET, { expiresIn: "1d" }); 
 };
 
+// --- AUTH CONTROLLERS ---
+
 export const register = async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-    if (!email || !password || !name) return res.status(400).json({ message: "All fields required" });
+    try {
+        const { name, email, password } = req.body;
+        
+        if (!email || !password || !name) {
+            return res.status(400).json({ message: "All fields required" });
+        }
 
-    const existing = await Employee.findOne({ email });
-    if (existing) return res.status(400).json({ message: "Employee already exists" });
+        // if (!validator.isEmail(email)) {
+        //     return res.status(400).json({ message: "Invalid email format" });
+        // }
 
-    const hashed = await bcrypt.hash(password, 10);
-    const employee = await Employee.create({ name, email, password: hashed });
+        // if (!validator.isStrongPassword(password)) {
+        //     return res.status(400).json({ message: "Password must be at least 8 characters long, contain at least one uppercase letter, one lowercase letter, one number, and one special character" });
+        // }
 
-    const token = generateToken(employee);
-    res.cookie("token", token, cookieOptions());
-    res.status(201).json({ success: true, employee: { id: employee._id, email: employee.email, name: employee.name } });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
+        const existing = await Employee.findOne({ email });
+        if (existing) {
+            return res.status(400).json({ message: "Employee already exists" });
+        }
+
+        const hashed = await bcrypt.hash(password, 10);
+        const employee = await Employee.create({ name, email, password: hashed });
+
+        // Auto-Enrollment for Mandatory Courses
+        const mandatoryCourses = await Course.find({ mandatory: true });
+
+        if (mandatoryCourses.length > 0) {
+            const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+            employee.enrolledCourses = mandatoryCourses.map(course => ({
+                course: course._id,
+                dueDate: dueDate
+            }));
+            await employee.save();
+        }
+
+        // Token generation and cookie setting
+        const token = generateToken(employee);
+        res.cookie("token", token, cookieOptions(1)); // 1-day cookie
+
+        res.status(201).json({
+            success: true,
+            message: "Employee registered and auto-enrolled in mandatory courses successfully.",
+            employee: {
+                id: employee._id,
+                name: employee.name,
+                email: employee.email
+            }
+        });
+
+    } catch (error) {
+        console.error("Registration error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
 };
 
 export const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+    try {
+        const { email, password } = req.body;
 
-    // 1️⃣ Find employee
-    const employee = await Employee.findOne({ email });
-    if (!employee) return res.status(401).json({ message: "Invalid email or password" });
+        if (!email || !password) {
+            return res.status(400).json({ message: "Email and password are required" });
+        }
 
-    // 2️⃣ Check password
-    const isMatch = await bcrypt.compare(password, employee.password);
-    if (!isMatch) return res.status(401).json({ message: "Invalid email or password" });
+        const employee = await Employee.findOne({ email });
+        if (!employee) return res.status(401).json({ message: "Invalid credentials" });
 
-    // 3️⃣ Create JWT
-    const token = jwt.sign({ id: employee._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+        const isMatch = await bcrypt.compare(password, employee.password);
+        if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
 
-    // 4️⃣ Send cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+        // Use the token generator for consistency, but set to a longer expiry (7 days)
+        const token = jwt.sign({ id: employee._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-    // 5️⃣ Return user info (optional)
-    res.status(200).json({
-      message: "Login successful",
-      user: {
-        id: employee._id,
-        name: employee.name,
-        email: employee.email,
-      },
-      token, // optional if you want localStorage version too
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ message: "Server error" });
-  }
+        // Use cookieOptions helper for consistency
+        res.cookie("token", token, cookieOptions(7)); // 7-day cookie
+
+        res.status(200).json({
+            message: "Login successful",
+            user: {
+                id: employee._id,
+                name: employee.name,
+                email: employee.email,
+            },
+        });
+    } catch (error) {
+        console.error("Login error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
 };
+
+
 
 export const logout = async (req, res) => {
-  try {
-    // Clear the cookie
+    try {
+        // Clear the cookie using the unified options structure to ensure proper clearance
+        res.clearCookie("token", cookieOptions()); 
 
-    res.clearCookie("token", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Logged out successfully",
-    });
-  } catch (err) {
-    console.error("Logout error:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Server error during logout",
-    });
-  }
+        return res.status(200).json({
+            success: true,
+            message: "Logged out successfully",
+        });
+    } catch (err) {
+        console.error("Logout error:", err);
+        return res.status(500).json({
+            success: false,
+            message: "Server error during logout",
+        });
+    }
 };
-
-
-
 
 export const me = async (req, res) => {
-  try {
-    // ✅ First try cookie, then fallback to Authorization header
-    const token =
-      req.cookies?.token || req.headers.authorization?.split(" ")[1];
-
-    if (!token) {
-      return res
-        .status(401)
-        .json({ loggedIn: false, message: "No token provided" });
-    }
-
-    // ✅ Verify token
-    let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
+
+        if (!token) {
+            return res.status(401).json({ loggedIn: false, message: "No token provided" });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (err) {
+            return res.status(401).json({ loggedIn: false, message: "Invalid or expired token" });
+        }
+
+        const employee = await Employee.findById(decoded.id).select("-password");
+        if (!employee) {
+            return res.status(404).json({ loggedIn: false, message: "User not found" });
+        }
+
+        res.status(200).json({
+            loggedIn: true,
+            user: employee,
+        });
     } catch (err) {
-      return res
-        .status(401)
-        .json({ loggedIn: false, message: "Invalid or expired token" });
+        console.error("me controller error:", err.message);
+        res.status(500).json({
+            loggedIn: false,
+            message: "Server error",
+        });
     }
-
-    // ✅ Fetch employee (exclude password)
-    const employee = await Employee.findById(decoded.id).select("-password");
-    if (!employee) {
-      return res
-        .status(404)
-        .json({ loggedIn: false, message: "User not found" });
-    }
-
-    // ✅ Success
-    res.status(200).json({
-      loggedIn: true,
-      user: employee,
-    });
-  } catch (err) {
-    console.error("me controller error:", err.message);
-    res.status(500).json({
-      loggedIn: false,
-      message: "Server error",
-    });
-  }
 };
 
-
 export const check = async (req, res) => {
-  try {
-    const token =
-      req.cookies?.token || req.headers.authorization?.split(" ")[1];
-    if (!token) {
-      return res.status(200).json({ loggedIn: false });
+    try {
+        const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
+        
+        if (!token) {
+            return res.status(200).json({ loggedIn: false });
+        }
+        
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const employee = await Employee.findById(decoded.id).select("-password");
+        
+        if (!employee) {
+            return res.status(200).json({ loggedIn: false });
+        }
+        
+        res.status(200).json({ loggedIn: true, user: employee });
+    } catch (err) {
+        // Return loggedIn: false on any token/auth failure, but keep status 200
+        console.error("Check auth error:", err);
+        res.status(200).json({ loggedIn: false }); 
     }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const employee = await Employee.findById(decoded.id).select("-password");
-    if (!employee) {
-      return res.status(200).json({ loggedIn: false });
-    }
-    res.status(200).json({ loggedIn: true, user: employee });
-  } catch (err) {
-    console.error("Check auth error:", err);
-    res.status(200).json({ loggedIn: false });
-  }
 };

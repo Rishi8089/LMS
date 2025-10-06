@@ -10,6 +10,7 @@ import { isAuth } from "../middleware/isAuth.js";
 
 const employeeRoute = express.Router();
 
+
 // Routes
 employeeRoute.post("/add-employee", addEmployee);
 employeeRoute.get("/current-employee", isAuth, getCurrentEmployee);

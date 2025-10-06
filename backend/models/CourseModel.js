@@ -32,26 +32,6 @@ const CourseSchema = new mongoose.Schema({
     
 }, { timestamps: true });
 
-
-
 const Course = mongoose.model('Course', CourseSchema);
 
 export default Course;
-
-
-
-//  studentsEnrolled: [{
-//         type: mongoose.Schema.Types.ObjectId,
-//         ref: "Employee"
-//     }],
-//     chapters: [{
-//         title: {
-//             type: String,
-//             required: false
-//         },
-//         minutes: {
-//             type: Number,
-//             required: false
-//         }
-        
-//     }]
