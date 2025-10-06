@@ -36,7 +36,7 @@ export const register = async (req, res) => {
         // if (!validator.isStrongPassword(password)) {
         //     return res.status(400).json({ message: "Password must be at least 8 characters long, contain at least one uppercase letter, one lowercase letter, one number, and one special character" });
         // }
-
+        
         const existing = await Employee.findOne({ email });
         if (existing) {
             return res.status(400).json({ message: "Employee already exists" });
@@ -84,6 +84,8 @@ export const login = async (req, res) => {
         if (!email || !password) {
             return res.status(400).json({ message: "Email and password are required" });
         }
+
+        
 
         const employee = await Employee.findOne({ email });
         if (!employee) return res.status(401).json({ message: "Invalid credentials" });

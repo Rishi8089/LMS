@@ -16,6 +16,7 @@ export const createCourse = async (req, res) => {
     }
 };
 
+
 export const getCourses = async (req, res) => {
     try {
         const courses = await Course.find();
@@ -39,6 +40,7 @@ export const getCourseById = async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 };
+
 export const updateCourse = async (req, res) => {
     try {
         const { id } = req.params;

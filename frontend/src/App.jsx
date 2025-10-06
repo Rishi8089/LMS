@@ -12,7 +12,10 @@ import ErrorBoundary from "./components/ErrorBoundary.jsx";
 // This hook must contain its API call inside a useEffect to prevent an infinite loop
 import getCurrentEmployee from "./customHook/getCurrentEmployee.js";
 import { AuthContext } from "./context/authContext.jsx";
+import CourseDetail from "./pages/CourseDetail.jsx";
+
 import { serverUrl } from "./config.js";
+import adminRoute from "./components/admin/adminRoute.jsx";
 
 const App = () => {
   const { isLoggedIn } = useContext(AuthContext);
@@ -32,7 +35,12 @@ const App = () => {
             
             {/* Protected routes: Requires login. Redirects to /login if not logged in. */}
             <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/course/:id" element={<ProtectedRoute><CourseDetail /></ProtectedRoute>} />
             <Route path="/mylearning" element={<ProtectedRoute><MyLearning /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><adminRoute /></ProtectedRoute>} >
+            
+            
+            </Route>
           </Routes>
           <Footer />
         </ErrorBoundary>

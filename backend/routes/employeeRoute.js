@@ -5,6 +5,7 @@ import {
   getEmployeeById,
   enrolledCourses,
   getCurrentEmployee,
+  checkEnrollment,
 } from "../controllers/employeeController.js";
 import { isAuth } from "../middleware/isAuth.js";
 
@@ -17,6 +18,9 @@ employeeRoute.get("/current-employee", isAuth, getCurrentEmployee);
 
 // ✅ Enroll in a course
 employeeRoute.post("/enroll-course/:id", enrollCourse);
+
+// ✅ Check if employee is enrolled in a course
+employeeRoute.get("/check-enrollment/:employeeId/:courseId", checkEnrollment);
 
 // ✅ Get all enrolled courses for an employee
 employeeRoute.get("/enrolled-courses", isAuth, enrolledCourses);

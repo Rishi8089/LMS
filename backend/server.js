@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import authRoute from './routes/authRoute.js';
 import courseRoute from './routes/courseRoute.js';
 import employeeRoute from './routes/employeeRoute.js';
+import adminRoute from './routes/adminRoute.js';
 import cors from 'cors';
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.listen(PORT, () => {
 app.use('/api/auth', authRoute);
 app.use('/api/courses', courseRoute);
 app.use('/api/employee', employeeRoute);
+app.use('/api/admin', adminRoute);
 
 
 app.get('/', (req, res) => {
