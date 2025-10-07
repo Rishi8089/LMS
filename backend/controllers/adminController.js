@@ -12,8 +12,8 @@ const cookieOptions = (days = 1) => ({
 });
 
 // Helper function for token generation
-const generateToken = (employee) => {
-    return jwt.sign({ id: employee._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+const generateToken = (payload) => {
+    return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1d" });
 };
 
 const dashboard = async (req, res) => {
@@ -48,7 +48,9 @@ const adminLogin = (req, res) => {
         return res.status(400).json({ message: "Email and password are required" });
     }
     if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
-        return res.status(200).json({ message: "Admin login successful" });
+        const token = generateToken({ id: 'admin', role: 'admin' });
+        res.cookie("adminToken", token, cookieOptions(1));
+        return res.status(200).json({ message: "Admin login successful", user: { role: 'admin' } });
     }
     return res.status(401).json({ message: "Invalid admin credentials" });
 };
@@ -82,7 +84,7 @@ const employeeRegister = async (req, res) => {
         }
 
         // Token generation and cookie setting
-        const token = generateToken(employee);
+        const token = generateToken({ id: employee._id });
         res.cookie("token", token, cookieOptions(1)); // 1-day cookie
 
         res.status(201).json({
@@ -111,4 +113,38 @@ const getAllEmployees = async (req, res) => {
     }
 };
 
-export { dashboard, adminLogin, employeeRegister, getAllEmployees };
+const adminCheck = async (req, res) => {
+    try {
+        const token = req.cookies?.adminToken;
+        if (!token) {
+            return res.status(200).json({ loggedIn: false });
+        }
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded.role === 'admin') {
+            res.status(200).json({ loggedIn: true, user: { role: 'admin' } });
+        } else {
+            res.status(200).json({ loggedIn: false });
+        }
+    } catch (err) {
+        console.error("Admin check error:", err);
+        res.status(200).json({ loggedIn: false });
+    }
+};
+
+const adminLogout = async (req, res) => {
+    try {
+        res.clearCookie("adminToken", cookieOptions());
+        return res.status(200).json({
+            success: true,
+            message: "Admin logged out successfully",
+        });
+    } catch (err) {
+        console.error("Admin logout error:", err);
+        return res.status(500).json({
+            success: false,
+            message: "Server error during logout",
+        });
+    }
+};
+
+export { dashboard, adminLogin, employeeRegister, getAllEmployees, adminCheck, adminLogout };
