@@ -93,8 +93,9 @@ const LoginPage = () => {
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center bg-black text-white px-8 py-3 rounded-full shadow transition-transform ease-in-out hover:scale-95"
+              className="w-full flex items-center justify-center bg-black text-white px-8 py-3 rounded-full shadow transition-transform ease-in-out hover:scale-95 cursor-pointer"
               disabled={loading}
+              
             >
               {loading ? <ClipLoader color="white" /> : "Login"}
             </button>

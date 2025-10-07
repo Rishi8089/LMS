@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useContext } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import { serverUrl } from "../config.js";
 import { AuthContext } from "../context/authContext.jsx";
 import getCurrentEmployee from "../customHook/getCurrentEmployee.js";
+
 
 const CourseDetails = () => {
   const { id } = useParams();
@@ -13,6 +14,9 @@ const CourseDetails = () => {
   const [enrolling, setEnrolling] = useState(false);
   const { isLoggedIn } = useContext(AuthContext);
   const employee = getCurrentEmployee(isLoggedIn);
+
+  const navigate = useNavigate();
+  
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -113,7 +117,10 @@ const CourseDetails = () => {
 
             {isLoggedIn ? (
               isEnrolled ? (
-                <button className="bg-black text-white px-6 py-2 rounded-md w-32 hover:bg-gray-800 transition">
+                <button
+                  onClick={() => navigate(`/player/${id}`)}
+                  className="bg-black text-white px-6 py-2 rounded-md w-32 hover:bg-gray-800 transition cursor-pointer"
+                >
                   Play
                 </button>
               ) : (

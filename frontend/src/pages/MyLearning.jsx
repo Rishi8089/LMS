@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import MyLearningCourseCard from "../components/MyLearningCourseCard.jsx";
 import SearchBar from "../components/SearchBar.jsx";
@@ -14,6 +15,7 @@ const MyLearning = () => {
   const [loading, setLoading] = useState(true);
   const { isLoggedIn } = useAuth();
   const employee = getCurrentEmployee(isLoggedIn);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let isMounted = true;
@@ -107,6 +109,7 @@ const MyLearning = () => {
               progress={enrollment.progress}
               mandatory={enrollment.course.mandatory}
               dueDate={enrollment.dueDate}
+              onClick={() => navigate(`/course/${enrollment.course._id}`)}
             />
           ))
         ) : (

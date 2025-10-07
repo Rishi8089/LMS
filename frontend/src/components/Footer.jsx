@@ -7,7 +7,7 @@ const Footer = () => {
             Strategy Boolean
         </h2>
         <p className=''>learn by passion and achieve success faster .</p>
-        <p className='text-black opacity-70'>@2024-25 Strategy Boolean ,all rights reserved. </p>
+        <p className='text-black opacity-70'>@2024-26 Strategy Boolean ,all rights reserved. </p>
     </div>
   )
 }
