@@ -43,6 +43,10 @@ const EmployeeSchema = new mongoose.Schema({
       type: String,
       enum: ['enrolled', 'completed'],
       default: 'enrolled'
+    },
+    progress: {
+      type: Number,
+      default:0
     }
   }
 ]

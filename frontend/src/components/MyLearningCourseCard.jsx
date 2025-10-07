@@ -9,6 +9,7 @@ const MyLearningCourseCard = ({
   progress,
   mandatory,
   dueDate,
+  onClick,
 }) => {
   const getDifficultyColor = (level) => {
     switch (level?.toLowerCase()) {
@@ -36,7 +37,10 @@ const MyLearningCourseCard = ({
   };
 
   return (
-    <div className="bg-white rounded-xl overflow-hidden shadow-md transform transition duration-300 hover:scale-95 hover:shadow-xl w-full max-w-4xl">
+    <div
+      className="bg-white rounded-xl overflow-hidden shadow-md transform transition duration-300 hover:scale-95 hover:shadow-xl w-full max-w-4xl cursor-pointer"
+      onClick={onClick}
+    >
       <div className="flex flex-col md:flex-row">
         {/* Image */}
         <div className="md:w-1/3">

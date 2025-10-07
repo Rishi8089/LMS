@@ -19,6 +19,9 @@
 - [ ] Abstract filtering logic into custom hook
 - [ ] Update server.js to remove unused routes
 
+## Admin Panel Integration
+- [x] Removed admin panel integration
+
 ## Testing
 - [ ] Test enrollment flow after fixes
 - [ ] Test API endpoints

@@ -1,57 +1,29 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useContext } from 'react';
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import { AuthContext } from '../context/authContext.jsx';
+import { serverUrl } from '../config.js';
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import { serverUrl } from "../config.js";
-import { toast } from "react-toastify";
-import { ClipLoader } from "react-spinners";
-import { useAuth } from "../context/authContext.jsx";
-import getCurrentEmployee from "../customHook/getCurrentEmployee.js";
+import {ClipLoader} from 'react-spinners'
 
-const LoginPage = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+const Login = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-
+  const { login } = useContext(AuthContext);
   const navigate = useNavigate();
-  const { isLoggedIn, login } = useAuth();
+  
 
-  const employee = getCurrentEmployee();
-
-  // ✅ Redirect if already logged in or employee exists
-  useEffect(() => {
-    if (isLoggedIn ) {
-      navigate("/");
-    }
-  }, [isLoggedIn, navigate]);
-
-  const handleLogin = async () => {
-    if (!email || !password) {
-      toast.error("Please fill all fields");
-      return;
-    }
-
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setLoading(true);
     try {
-      const response = await axios.post(
-        `${serverUrl}/api/auth/login`,
-        { email, password },
-        { withCredentials: true } // must be true for cookies
-      );
-
-      console.log("Login response:", response.data);
-
-      if (response.status === 200) {
-        toast.success("Login Successful");
-
-        // ✅ login in auth context
-        if (response.data.user) login(response.data.user);
-
-        // ✅ current employee will automatically be fetched via getCurrentEmployee hook
-        navigate("/");
-      }
+      const res = await axios.post(`${serverUrl}/api/admin/login`, { email, password }, { withCredentials: true });
+      toast.success(res.data.message);
+      login(res.data.user);
+      navigate('/');
     } catch (error) {
-      console.error("Login failed response:", error.response?.data);
-      toast.error(error.response?.data?.message || "Login failed");
+      toast.error(error.response?.data?.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -68,10 +40,7 @@ const LoginPage = () => {
 
           <form
             className="space-y-6"
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleLogin();
-            }}
+            onSubmit={handleSubmit}
           >
             <input
               type="email"
@@ -101,15 +70,11 @@ const LoginPage = () => {
             </button>
           </form>
 
-          <div className="text-center pt-4">
-            <a href="#" className="text-sm text-blue-600 hover:underline">
-              Forgot password?
-            </a>
-          </div>
+          
         </div>
       </div>
     </div>
   );
 };
 
-export default LoginPage;
+export default Login;
