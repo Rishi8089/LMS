@@ -24,8 +24,9 @@ export const AuthProvider = ({ children }) => {
     const checkLogin = async () => {
       try {
         const res = await axios.get(`${serverUrl}/api/auth/check`, {
-          withCredentials: true, // ✅ very important for cookies
+          withCredentials: true,
         });
+
 
         if (res.data.loggedIn) {
           setIsLoggedIn(true);

@@ -5,6 +5,9 @@ import { serverUrl } from '../config.js';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({});
+  const [mandatoryCourses, setMandatoryCourses] = useState([]);
+  const [enrolledEmployees, setEnrolledEmployees] = useState({});
+  const [showEmployees, setShowEmployees] = useState({});
   const [loading, setLoading] = useState(true);
   const { logout } = useContext(AuthContext);
 
@@ -22,8 +25,39 @@ const Dashboard = () => {
     fetchStats();
   }, []);
 
+  useEffect(() => {
+    const fetchMandatoryCourses = async () => {
+      try {
+        const res = await axios.get(`${serverUrl}/api/admin/mandatory-courses`, { withCredentials: true });
+        setMandatoryCourses(res.data.courses);
+      } catch (error) {
+        console.error('Failed to fetch mandatory courses:', error);
+      }
+    };
+    fetchMandatoryCourses();
+  }, []);
+
   const handleLogout = () => {
     logout();
+  };
+
+  const handleShowEmployees = async (courseId) => {
+    if (showEmployees[courseId]) {
+      setShowEmployees({ ...showEmployees, [courseId]: false });
+      return;
+    }
+    try {
+      const res = await axios.get(`${serverUrl}/api/admin/course/${courseId}/enrolled-employees`, { withCredentials: true });
+      setEnrolledEmployees({ ...enrolledEmployees, [courseId]: res.data.employees });
+      setShowEmployees({ ...showEmployees, [courseId]: true });
+    } catch (error) {
+      console.error('Failed to fetch enrolled employees:', error);
+    }
+  };
+
+  const handleReminder = (employeeName) => {
+    // Placeholder for future reminder functionality
+    alert(`Reminder sent to ${employeeName}`);
   };
 
   if (loading) {
@@ -109,8 +143,53 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
+          <div className="mt-8">
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Mandatory Courses ({mandatoryCourses.length})</h2>
+              <div className="space-y-4">
+                {mandatoryCourses.map((course) => (
+                  <div key={course._id} className="border-b border-gray-200 pb-4 last:border-b-0">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h3 className="text-lg font-medium text-gray-900">{course.title}</h3>
+                        <p className="text-sm text-gray-500">{course.description}</p>
+                      </div>
+                      <button
+                        onClick={() => handleShowEmployees(course._id)}
+                        className="bg-black hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+                      >
+                        {showEmployees[course._id] ? 'Hide Employees' : 'Show Employees'}
+                      </button>
+                    </div>
+                    {showEmployees[course._id] && (
+                      <div className="mt-4">
+                        <h4 className="text-md font-medium text-gray-700 mb-2">Enrolled Employees ({enrolledEmployees[course._id]?.length || 0})</h4>
+                        <ul className="space-y-2">
+                          {enrolledEmployees[course._id]?.map((employee) => (
+                            <li key={employee._id} className="flex justify-between items-center bg-gray-50 p-3 rounded">
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{employee.name}</p>
+                                <p className="text-sm text-gray-500">{employee.email}</p>
+                              </div>
+                              <button
+                                onClick={() => handleReminder(employee.name)}
+                                className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-3 rounded text-sm"
+                              >
+                                Reminder
+                              </button>
+                            </li>
+                          )) || <p className="text-sm text-gray-500">No employees enrolled.</p>}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </main>
+
     </div>
   );
 };

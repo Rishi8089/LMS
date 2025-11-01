@@ -34,7 +34,7 @@ const Login = () => {
       <div className="relative flex-grow flex items-center justify-center py-12 px-4 bg-center bg-cover">
         <div className="relative bg-white/80 backdrop-blur-md p-8 sm:p-10 rounded-[3rem] shadow-2xl w-full max-w-sm">
           <div className="text-center space-y-2 mb-6">
-            <h2 className="text-3xl font-bold text-gray-800">Login here ..</h2>
+            <h2 className="text-3xl font-bold text-gray-800">Admin Login here ..</h2>
             <div className="h-1 bg-gray-900 w-16 mx-auto rounded-full"></div>
           </div>
 

@@ -14,6 +14,7 @@ import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import getCurrentEmployee from "./customHook/getCurrentEmployee.js";
 import { AuthContext } from "./context/authContext.jsx";
 import CourseDetail from "./pages/CourseDetail.jsx";
+import Profile from "./pages/Profile.jsx";
 
 import { serverUrl } from "./config.js";
 
@@ -39,6 +40,7 @@ const App = () => {
             <Route path="/course/:id" element={<ProtectedRoute><CourseDetail /></ProtectedRoute>} />
             <Route path="/mylearning" element={<ProtectedRoute><MyLearning /></ProtectedRoute>} />
             <Route path="/player/:courseId" element={<ProtectedRoute><Player /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="*" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           </Routes>
           <Footer />

@@ -43,7 +43,7 @@ const MyLearningCourseCard = ({
     >
       <div className="flex flex-col md:flex-row">
         {/* Image */}
-        <div className="md:w-1/3">
+        <div className="md:w-1/2">
           <img src={image} alt={title} className="w-full h-48 md:h-full object-cover" />
         </div>
 

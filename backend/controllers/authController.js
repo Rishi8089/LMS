@@ -8,9 +8,9 @@ import Course from "../models/CourseModel.js";
 const cookieOptions = (days = 1) => ({
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    // Use 'none' for cross-site (production front-end on different domain)
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", 
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     maxAge: days * 24 * 60 * 60 * 1000, // days * hours * minutes * seconds * milliseconds
+    path: "/"
 });
 
 // Helper function for token generation
@@ -61,14 +61,14 @@ export const register = async (req, res) => {
         const token = generateToken(employee);
         res.cookie("token", token, cookieOptions(1)); // 1-day cookie
 
-        res.status(201).json({
+        res.status(200).json({
             success: true,
-            message: "Employee registered and auto-enrolled in mandatory courses successfully.",
-            employee: {
+            message: "Registration successful",
+            user: {
                 id: employee._id,
                 name: employee.name,
-                email: employee.email
-            }
+                email: employee.email,
+            },
         });
 
     } catch (error) {
@@ -93,13 +93,12 @@ export const login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, employee.password);
         if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
 
-        // Use the token generator for consistency, but set to a longer expiry (7 days)
-        const token = jwt.sign({ id: employee._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-
-        // Use cookieOptions helper for consistency
-        res.cookie("token", token, cookieOptions(7)); // 7-day cookie
+        // Token generation and cookie setting
+        const token = generateToken(employee);
+        res.cookie("token", token, cookieOptions(1)); // 1-day cookie
 
         res.status(200).json({
+            success: true,
             message: "Login successful",
             user: {
                 id: employee._id,
@@ -117,8 +116,13 @@ export const login = async (req, res) => {
 
 export const logout = async (req, res) => {
     try {
-        // Clear the cookie using the unified options structure to ensure proper clearance
-        res.clearCookie("token", cookieOptions()); 
+        // Clear the cookie using the same options as set, without maxAge
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+            path: "/"
+        });
 
         return res.status(200).json({
             success: true,
@@ -169,22 +173,22 @@ export const me = async (req, res) => {
 export const check = async (req, res) => {
     try {
         const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
-        
+
         if (!token) {
             return res.status(200).json({ loggedIn: false });
         }
-        
+
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const employee = await Employee.findById(decoded.id).select("-password");
-        
+
         if (!employee) {
             return res.status(200).json({ loggedIn: false });
         }
-        
+
         res.status(200).json({ loggedIn: true, user: employee });
     } catch (err) {
         // Return loggedIn: false on any token/auth failure, but keep status 200
         console.error("Check auth error:", err);
-        res.status(200).json({ loggedIn: false }); 
+        res.status(200).json({ loggedIn: false });
     }
 };
