@@ -1,0 +1,91 @@
+import React, { useState } from "react";
+import axios from "axios";
+import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
+import getCurrentEmployee from "../customHook/getCurrentEmployee.js";
+import { useAuth } from "../context/authContext.jsx";
+import { serverUrl } from "../config.js";
+
+const CourseCard = ({ _id, images, title, hours, description, difficulty, mandatory }) => {
+  const [enrolling, setEnrolling] = useState(false);
+  const { isLoggedIn } = useAuth();
+  const employee = getCurrentEmployee(isLoggedIn);
+  const navigate = useNavigate();
+
+  // ✅ Color helper for difficulty badge
+  const getDifficultyColor = (level = "") => {
+    switch (level.toLowerCase()) {
+      case "beginner":
+        return "bg-green-100 text-green-700";
+      case "intermediate":
+        return "bg-yellow-100 text-yellow-700";
+      case "hard":
+        return "bg-red-100 text-red-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  // ✅ Optional: Keep enroll functionality for reuse
+  const handleEnroll = async () => {
+    if (!employee || !_id) return;
+    setEnrolling(true);
+    try {
+      const response = await axios.post(
+        `${serverUrl}/api/employee/enroll-course/${employee._id}`,
+        { courseId: _id },
+        { withCredentials: true }
+      );
+
+      if (response.data.success) {
+        toast.success("Enrolled successfully!");
+      } else {
+        toast.error(response.data.message || "Enrollment failed");
+      }
+    } catch (error) {
+      console.error("Enrollment error:", error);
+      toast.error(error.response?.data?.message || "Enrollment failed");
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
+  // ✅ Navigate to course details when card is clicked
+  const handleCardClick = () => {
+    navigate(`/course/${_id}`);
+  };
+
+  return (
+    <div
+      onClick={handleCardClick}
+      className="ml-8 bg-white rounded-xl overflow-hidden shadow-md transform transition duration-300 hover:scale-95 hover:shadow-xl w-70 h-80 relative cursor-pointer"
+    >
+      <img src={images && images.startsWith('/uploads') ? `${serverUrl}${images}` : images} alt={title} className="w-full h-40 object-cover" />
+
+      {/* Mandatory badge */}
+      {mandatory && (
+        <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-3 py-1 rounded-full shadow">
+          Mandatory
+        </span>
+      )}
+
+      <div className="p-4 flex flex-col justify-between h-40">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+          <span
+            className={`text-xs font-medium px-2 py-1 rounded-full ${getDifficultyColor(
+              difficulty
+            )}`}
+          >
+            {difficulty}
+          </span>
+        </div>
+
+        <p className="text-sm text-gray-500">{hours} Hours</p>
+        <p className="text-gray-600 text-sm line-clamp-2">{description}</p>
+      </div>
+    </div>
+  );
+};
+
+export default CourseCard;

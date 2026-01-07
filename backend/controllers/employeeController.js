@@ -1,0 +1,483 @@
+import Employee from "../models/EmployeeModel.js";
+import Course from "../models/CourseModel.js";
+import Enrollment from "../models/EnrollmentsModel.js";
+import { isAuth } from "../middleware/isAuth.js";
+
+
+export const getCurrentEmployee = async (req, res) => {
+
+    try {
+        const employee = await Employee.findById(req.employee.id).select("-password");
+        if (!employee) {
+            return res.status(404).json({ message: "Employee not found" });
+        }
+        res.status(200).json({ success: true, employee });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+
+    }
+};
+
+
+export const addEmployee = async (req, res) => {
+    try {
+        const { name, email } = req.body;
+        if (!name || !email) {
+            return res.status(400).json({ message: "Name and email are required" });
+        }
+        const existingEmployee = await Employee.findOne({ email });
+        if (existingEmployee) {
+            return res.status(400).json({ message: "Employee with this email already exists" });
+        }
+
+        // Create the employee
+        const employee = await Employee.create({ name, email });
+
+        // Find all mandatory courses
+        const mandatoryCourses = await Course.find({ mandatory: true });
+
+        // Enroll employee in all mandatory courses
+        for (const course of mandatoryCourses) {
+            try {
+                // Calculate due date (30 days from enrollment)
+                const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+                // Create enrollment record
+                const enrollment = await Enrollment.create({
+                    employee: employee._id,
+                    course: course._id,
+                    dueDate: dueDate,
+                    status: 'enrolled',
+                    progress: 0,
+                    quizCompleted: false,
+                    enrollmentDate: new Date(),
+                    lastAccessed: new Date()
+                });
+
+                // Add to employee's enrolledCourses array
+                employee.enrolledCourses.push({
+                    course: course._id,
+                    enrollmentDate: new Date(),
+                    status: "enrolled",
+                    progress: 0,
+                });
+
+                console.log(`Auto-enrolled employee ${employee.name} in mandatory course: ${course.title} (Enrollment ID: ${enrollment._id})`);
+            } catch (enrollmentError) {
+                console.error(`Failed to enroll employee ${employee.name} in course ${course.title}:`, enrollmentError);
+            }
+        }
+
+        // Save the employee with enrolled courses
+        await employee.save();
+
+        // Populate the enrolled courses for the response
+        const populatedEmployee = await Employee.findById(employee._id).populate('enrolledCourses.course');
+
+        res.status(201).json({
+            success: true,
+            employee: populatedEmployee,
+            message: `Employee created and enrolled in ${mandatoryCourses.length} mandatory courses`
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+export const getEmployeeById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const employee = await Employee.findById(id).populate('enrolledCourses.course');
+        if (!employee) {
+            return res.status(404).json({ message: "Employee not found" });
+        }
+        res.status(200).json({ success: true, employee });
+    }
+    catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+export const enrollCourse = async (req, res) => {
+    try {
+        const { id } = req.params; // Employee ID
+        const { courseId, daysToComplete } = req.body; // Course ID and optional days to complete
+        const employee = await Employee.findById(id);
+        const course = await Course.findById(courseId);
+        if (!employee) {
+            return res.status(404).json({ message: "Employee not found" });
+        }
+        if (!course) {
+            return res.status(404).json({ message: "Course not found" });
+        }
+
+        // Check if already enrolled using Enrollment model
+        const existingEnrollment = await Enrollment.findOne({ employee: id, course: courseId });
+        if (existingEnrollment) {
+            return res.status(400).json({ message: "Already enrolled in this course" });
+        }
+
+        // Use daysToComplete or default to 30 days
+        const days = (typeof daysToComplete === 'number' && daysToComplete > 0) ? daysToComplete : 30;
+        const dueDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+        // Create enrollment record
+        const enrollment = await Enrollment.create({
+            employee: id,
+            course: courseId,
+            dueDate: dueDate,
+            status: 'in-progress',
+            progress: 0,
+            quizCompleted: false
+        });
+
+        // Update employee's enrolledCourses array
+        const alreadyEnrolled = employee.enrolledCourses.some(
+            (enrolled) => enrolled.course.toString() === courseId.toString()
+        );
+
+        if (!alreadyEnrolled) {
+            employee.enrolledCourses.push({
+                course: courseId,
+                enrollmentDate: new Date(),
+                status: "enrolled",
+                progress: 0,
+            });
+            await employee.save();
+        }
+
+        res.status(200).json({ success: true, message: "Enrolled successfully", enrollment });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+export const enrolledCourses = async (req, res) => {
+    try {
+        const id = req.employee.id;
+
+        // Find enrollments for the employee and populate course data
+        const enrollments = await Enrollment.find({ employee: id }).populate("course");
+
+        if (!enrollments) {
+            return res.status(404).json({ success: false, message: "No enrollments found" });
+        }
+
+        // Transform enrollments to match the expected format
+        const courses = enrollments.map(enrollment => ({
+            _id: enrollment._id,
+            course: enrollment.course,
+            progress: enrollment.progress || 0,
+            status: enrollment.status || 'in-progress',
+            completedLessons: enrollment.completedLessons || 0,
+            totalLessons: enrollment.totalLessons || 0,
+            dueDate: enrollment.dueDate,
+            quizCompleted: enrollment.quizCompleted || false,
+            lessonProgress: enrollment.lessonProgress || []
+        }));
+
+        res.status(200).json({
+            success: true,
+            courses: courses
+        });
+    } catch (err) {
+        console.error("Error fetching enrolled courses:", err);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+export const checkEnrollment = async (req, res) => {
+    try {
+        const { employeeId, courseId } = req.params;
+        const employee = await Employee.findById(employeeId);
+
+        if (!employee) {
+            return res.status(404).json({ success: false, message: "Employee not found" });
+        }
+
+        const isEnrolled = employee.enrolledCourses.some(ec => ec.course.toString() === courseId);
+
+        res.status(200).json({ success: true, enrolled: isEnrolled });
+    } catch (err) {
+        console.error("Error checking enrollment:", err);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+/**
+ * Calculate overall course progress based on lesson progress
+ */
+const calculateCourseProgress = async (enrolledCourse, courseId) => {
+    try {
+        // Get the course to count total lessons
+        const course = await Course.findById(courseId);
+        if (!course) return;
+
+        // Count total lessons in the course
+        let totalLessons = 0;
+        course.chapters.forEach(chapter => {
+            totalLessons += chapter.lessons.length;
+        });
+
+        // Count completed lessons (progress >= 90%)
+        const completedLessons = enrolledCourse.lessonProgress.filter(lp => lp.progress >= 90).length;
+
+        // Calculate overall progress percentage
+        const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+
+        // Update enrolled course data
+        enrolledCourse.progress = progress;
+        enrolledCourse.completedLessons = completedLessons;
+        enrolledCourse.totalLessons = totalLessons;
+
+        // Mark course as completed if all lessons are done
+        if (progress >= 100) {
+            enrolledCourse.status = 'completed';
+        }
+
+        return { progress, completedLessons, totalLessons };
+    } catch (error) {
+        console.error("Error calculating course progress:", error);
+        return null;
+    }
+};
+
+/**
+ * Update lesson progress for an employee
+ */
+export const updateLessonProgress = async (req, res) => {
+    try {
+        const { employeeId, courseId, chapterIndex, lessonIndex, progress } = req.body;
+
+        if (!employeeId || !courseId || chapterIndex === undefined || lessonIndex === undefined || progress === undefined) {
+            return res.status(400).json({ success: false, message: "All fields are required" });
+        }
+
+        // Find enrollment record
+        const enrollment = await Enrollment.findOne({ employee: employeeId, course: courseId });
+        if (!enrollment) {
+            return res.status(404).json({ success: false, message: "Employee not enrolled in this course" });
+        }
+
+        // Find or create lesson progress entry
+        let lessonProgress = enrollment.lessonProgress.find(
+            lp => lp.chapterIndex === chapterIndex && lp.lessonIndex === lessonIndex
+        );
+
+        if (!lessonProgress) {
+            lessonProgress = {
+                chapterIndex,
+                lessonIndex,
+                progress: 0,
+                completed: false,
+                lastAccessed: new Date()
+            };
+            enrollment.lessonProgress.push(lessonProgress);
+        }
+
+        // Check if this is a PDF lesson (requires 100% completion)
+        const course = await Course.findById(courseId);
+        const isPDFLesson = course?.chapters?.[chapterIndex]?.lessons?.[lessonIndex]?.video
+            ?.toLowerCase()
+            .endsWith('.pdf');
+
+        // Update progress and last accessed time
+        lessonProgress.progress = Math.min(100, Math.max(0, progress));
+        lessonProgress.completed = isPDFLesson ? lessonProgress.progress >= 100 : lessonProgress.progress >= 90;
+        lessonProgress.lastAccessed = new Date();
+
+        // Calculate and update overall course progress
+        const courseProgressData = await calculateCourseProgress(enrollment, courseId);
+
+        // If course is completed, publish the quiz
+        if (courseProgressData && courseProgressData.progress >= 100) {
+            await Course.findByIdAndUpdate(courseId, {
+                'quiz.published': true
+            });
+        }
+
+        await enrollment.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Lesson progress updated",
+            lessonProgress: lessonProgress,
+            courseProgress: courseProgressData
+        });
+    } catch (err) {
+        console.error("Error updating lesson progress:", err);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+/**
+ * Get quiz for a course
+ */
+export const getCourseQuiz = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const employeeId = req.employee.id;
+
+        // Check if employee is enrolled in the course (check both Enrollment model and enrolledCourses array for backward compatibility)
+        const enrollment = await Enrollment.findOne({ employee: employeeId, course: courseId });
+        const employee = await Employee.findById(employeeId);
+        const isEnrolledInArray = employee?.enrolledCourses?.some(ec => ec.course.toString() === courseId);
+
+        if (!enrollment && !isEnrolledInArray) {
+            return res.status(403).json({ success: false, message: "Not enrolled in this course" });
+        }
+
+        // Use enrollment if exists, otherwise create a minimal enrollment object from array
+        const enrollmentData = enrollment || {
+            quizAttempts: 0,
+            quizPassed: false,
+            quizScore: 0
+        };
+
+        // Get the course and its quiz
+        const course = await Course.findById(courseId);
+        if (!course) {
+            return res.status(404).json({ success: false, message: "Course not found" });
+        }
+
+        if (!course.quiz || !course.quiz.published) {
+            return res.status(404).json({ success: false, message: "No quiz found for this course" });
+        }
+
+        // Check if quiz has questions
+        const questions = course.quiz.questions || [];
+        if (questions.length === 0) {
+            return res.status(404).json({ success: false, message: "Quiz has no questions" });
+        }
+
+        // Check attempt limits
+        const maxAttempts = course.quiz.maxAttempts || 1;
+        if (enrollmentData.quizAttempts >= maxAttempts) {
+            return res.status(403).json({
+                success: false,
+                message: `You have reached the maximum number of attempts (${maxAttempts}) for this quiz.`,
+                attemptsUsed: enrollmentData.quizAttempts,
+                maxAttempts: maxAttempts,
+                passed: enrollmentData.quizPassed,
+                score: enrollmentData.quizScore
+            });
+        }
+
+        // If already passed, don't allow retaking
+        if (enrollmentData.quizPassed) {
+            return res.status(403).json({
+                success: false,
+                message: "You have already passed this quiz.",
+                passed: true,
+                score: enrollmentData.quizScore
+            });
+        }
+
+        // Return quiz data (without correct answers)
+        const quizData = {
+            _id: course.quiz._id,
+            title: course.quiz.title,
+            description: course.quiz.description,
+            timeLimitMins: course.quiz.timeLimitMins || 0,
+            passingScore: course.quiz.passingScore || 0,
+            maxAttempts: maxAttempts,
+            attemptsUsed: enrollmentData.quizAttempts,
+            questions: questions.map(q => ({
+                _id: q._id,
+                text: q.text,
+                type: q.type,
+                options: q.options
+            }))
+        };
+
+        res.status(200).json({ success: true, quiz: quizData });
+    } catch (err) {
+        console.error("Error fetching quiz:", err);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+/**
+ * Submit quiz answers
+ */
+export const submitQuiz = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const { answers } = req.body; // Array of { questionId, selectedOptions }
+        const employeeId = req.employee.id;
+
+        // Check if employee is enrolled in the course (check both Enrollment model and enrolledCourses array for backward compatibility)
+        const enrollment = await Enrollment.findOne({ employee: employeeId, course: courseId });
+        const employee = await Employee.findById(employeeId);
+        const isEnrolledInArray = employee?.enrolledCourses?.some(ec => ec.course.toString() === courseId);
+
+        if (!enrollment && !isEnrolledInArray) {
+            return res.status(403).json({ success: false, message: "Not enrolled in this course" });
+        }
+
+        // If no enrollment record but enrolled in array, create enrollment record for quiz submission
+        let enrollmentData = enrollment;
+        if (!enrollment && isEnrolledInArray) {
+            enrollmentData = await Enrollment.create({
+                employee: employeeId,
+                course: courseId,
+                status: 'completed', // Since they completed the course
+                progress: 100,
+                quizCompleted: false,
+                enrollmentDate: new Date(),
+                lastAccessed: new Date()
+            });
+        }
+
+        // Get the course and its quiz
+        const course = await Course.findById(courseId);
+        if (!course || !course.quiz) {
+            return res.status(404).json({ success: false, message: "Quiz not found" });
+        }
+
+        // Calculate score
+        let correctCount = 0;
+        let totalQuestions = course.quiz.questions.length;
+
+        const detailedResults = course.quiz.questions.map(question => {
+            const userAnswer = answers.find(a => a.questionId === question._id.toString());
+            const selectedOptions = userAnswer ? userAnswer.selectedOptions : [];
+            const isCorrect = JSON.stringify(selectedOptions.sort()) === JSON.stringify(question.correctAnswers.sort());
+
+            if (isCorrect) correctCount++;
+
+            return {
+                questionId: question._id,
+                questionText: question.text,
+                selectedOptions,
+                correctOptions: question.correctAnswers,
+                isCorrect
+            };
+        });
+
+        const score = Math.round((correctCount / totalQuestions) * 100);
+        const passed = score >= (course.quiz.passingScore || 0);
+
+        // Update enrollment
+        enrollmentData.quizCompleted = true;
+        enrollmentData.quizScore = score;
+        enrollmentData.quizPassed = passed;
+        enrollmentData.quizSubmittedAt = new Date();
+        await enrollmentData.save();
+
+        const result = {
+            score,
+            correctCount,
+            totalQuestions,
+            passed,
+            detailedResults
+        };
+
+        res.status(200).json({ success: true, result });
+    } catch (err) {
+        console.error("Error submitting quiz:", err);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+};

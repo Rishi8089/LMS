@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="src\assets\stylus_pencil_24dp_5F6368_FILL0_wght400_GRAD0_opsz24.svg"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Strategy Boolean</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+          sans-serif;
+        background-color: #f9fafb;
+        /* margin-top: 30px; */
+      }
+
+      #root {
+        position: relative;
+        min-height: 100vh;
+        overflow-x: hidden;
+
+        isolation: isolate;
+        z-index: 0; /* 🔥 required */
+
+        background: radial-gradient(
+            circle at top left,
+            rgba(255, 237, 213, 0.6),
+            transparent 45%
+          ),
+          radial-gradient(
+            circle at top right,
+            rgba(254, 215, 170, 0.5),
+            transparent 45%
+          ),
+          radial-gradient(
+            circle at bottom left,
+            rgba(255, 251, 235, 0.6),
+            transparent 50%
+          ),
+          linear-gradient(180deg, #ffffff 0%, #fff7ed 45%, #ffffff 100%);
+      }
+
+      /* Overlay safely BEHIND content */
+      #root::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1; /* 🔥 THIS FIXES THE OPACITY ISSUE */
+        background: linear-gradient(
+          120deg,
+          rgba(255, 255, 255, 0.4),
+          rgba(255, 255, 255, 0.2),
+          rgba(255, 255, 255, 0.4)
+        );
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
