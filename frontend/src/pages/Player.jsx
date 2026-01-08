@@ -15,7 +15,7 @@ import {
   FiSkipForward,
   FiMaximize,
   FiMinimize,
-  FiFileText, // Added icon for PDF
+  FiFileText,
 } from "react-icons/fi";
 
 /* ================= HELPERS ================= */
@@ -50,19 +50,18 @@ export default function Player() {
   /* ---------- refs ---------- */
   const videoRef = useRef(null);
   const videoContainerRef = useRef(null);
-  const pdfIframeRef = useRef(null);
+  const pdfContainerRef = useRef(null); // Ref for custom PDF scroller
   const saveTimer = useRef(null);
   const isSeeking = useRef(false);
-  const lastSavedPercent = useRef(0); // For throttling updates
+  const lastSavedPercent = useRef(0);
 
-  // Refs to hold current indices for the async saver to avoid stale closures
   const indicesRef = useRef({ cIdx: 0, lIdx: 0 });
 
   /* ---------- state ---------- */
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 1. Initialize from localStorage to prevent 0% flash on refresh
+  // 1. Initialize from localStorage
   const [lessonProgress, setLessonProgress] = useState(() => {
     try {
       const saved = localStorage.getItem(`course_progress_${courseId}`);
@@ -72,7 +71,6 @@ export default function Player() {
     }
   });
 
-  // 2. Initialize indices from localStorage to stay on current video
   const [currentChapterIndex, setCurrentChapterIndex] = useState(() => {
     const saved = localStorage.getItem(`active_chapter_${courseId}`);
     return saved ? parseInt(saved, 10) : 0;
@@ -92,40 +90,112 @@ export default function Player() {
   const [speed, setSpeed] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // PDF.js State
+  const [pdfLibLoaded, setPdfLibLoaded] = useState(false);
+  const [pdfDoc, setPdfDoc] = useState(null);
+  const [pdfPages, setPdfPages] = useState([]);
+  const [pdfScale, setPdfScale] = useState(1.5);
+
   const progressKey = `${currentChapterIndex}-${currentLessonIndex}`;
   const currentLesson =
     course?.chapters?.[currentChapterIndex]?.lessons?.[currentLessonIndex];
   const isPDF = isPdfFileDescriptor(currentLesson?.video);
 
-  // Update indices ref whenever state changes
+  /* ================= EFFECTS & SETUP ================= */
+
+  // Load PDF.js from CDN
   useEffect(() => {
-    indicesRef.current = {
-      cIdx: currentChapterIndex,
-      lIdx: currentLessonIndex,
+    if (window.pdfjsLib) {
+      setPdfLibLoaded(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    script.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      setPdfLibLoaded(true);
     };
-    
-    // Save to localStorage
+    document.body.appendChild(script);
+  }, []);
+
+  // Update indices ref & localStorage
+  useEffect(() => {
+    indicesRef.current = { cIdx: currentChapterIndex, lIdx: currentLessonIndex };
     localStorage.setItem(`active_chapter_${courseId}`, currentChapterIndex);
     localStorage.setItem(`active_lesson_${courseId}`, currentLessonIndex);
   }, [currentChapterIndex, currentLessonIndex, courseId]);
 
-  // Persist progress to localStorage whenever it updates
+  // Persist progress
   useEffect(() => {
     if (Object.keys(lessonProgress).length > 0) {
       localStorage.setItem(`course_progress_${courseId}`, JSON.stringify(lessonProgress));
     }
   }, [lessonProgress, courseId]);
 
-  /* ================= CALCULATE TOTAL PROGRESS ================= */
+  // Load PDF Document when isPDF becomes true
+  useEffect(() => {
+    if (!isPDF || !pdfLibLoaded || !currentLesson?.video) return;
+
+    const loadPdf = async () => {
+      setIsLoadingVideo(true);
+      setPdfPages([]);
+      setPdfDoc(null);
+      
+      try {
+        const url = currentLesson.video.startsWith("/uploads")
+          ? `${serverUrl}${currentLesson.video}`
+          : currentLesson.video;
+
+        const loadingTask = window.pdfjsLib.getDocument(url);
+        const doc = await loadingTask.promise;
+        setPdfDoc(doc);
+
+        // Create array of page numbers [1, 2, 3...]
+        const pages = Array.from({ length: doc.numPages }, (_, i) => i + 1);
+        setPdfPages(pages);
+      } catch (error) {
+        console.error("Error loading PDF:", error);
+      } finally {
+        setIsLoadingVideo(false);
+      }
+    };
+
+    loadPdf();
+  }, [isPDF, pdfLibLoaded, currentLesson]);
+
+  // Render PDF Pages
+  const renderPage = useCallback(
+    async (pageNum, canvasRef) => {
+      if (!pdfDoc || !canvasRef) return;
+      try {
+        const page = await pdfDoc.getPage(pageNum);
+        const viewport = page.getViewport({ scale: pdfScale });
+        const canvas = canvasRef;
+        const context = canvas.getContext("2d");
+        
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+        };
+        await page.render(renderContext).promise;
+      } catch (err) {
+        console.error("Page render error:", err);
+      }
+    },
+    [pdfDoc, pdfScale]
+  );
+
+  /* ================= PROGRESS LOGIC ================= */
 
   const overallProgress = useMemo(() => {
     if (!course?.chapters) return 0;
-    
     const totalLessons = course.chapters.reduce(
-      (acc, ch) => acc + ch.lessons.length, 
-      0
+      (acc, ch) => acc + ch.lessons.length, 0
     );
-    
     if (totalLessons === 0) return 0;
 
     let totalProgressSum = 0;
@@ -136,25 +206,19 @@ export default function Player() {
         totalProgressSum += Math.min(100, Math.max(0, p));
       });
     });
-
     return Math.round(totalProgressSum / totalLessons);
   }, [course, lessonProgress]);
 
-  /* ================= PROGRESS REFRESH ================= */
-
   const refreshProgress = useCallback(async () => {
     if (!employee) return;
-
     try {
       const pRes = await axios.get(
         `${serverUrl}/api/employee/enrolled-courses`,
         { withCredentials: true }
       );
-
       const enrolled = pRes.data.courses.find(
         (c) => c?.course?._id === courseId || c?.course === courseId
       );
-
       if (enrolled?.lessonProgress) {
         const map = {};
         enrolled.lessonProgress.forEach((p) => {
@@ -173,13 +237,10 @@ export default function Player() {
     }
   }, [employee, courseId]);
 
-  /* ================= FETCH DATA ================= */
-
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-
         const cRes = await axios.get(`${serverUrl}/api/courses/${courseId}`, {
           withCredentials: true,
         });
@@ -190,11 +251,9 @@ export default function Player() {
             `${serverUrl}/api/employee/enrolled-courses`,
             { withCredentials: true }
           );
-
           const enrolled = pRes.data.courses.find(
             (c) => c?.course?._id === courseId || c?.course === courseId
           );
-
           if (enrolled?.lessonProgress) {
             const map = {};
             enrolled.lessonProgress.forEach((p) => {
@@ -206,7 +265,7 @@ export default function Player() {
                 lessonIndex: p.lessonIndex,
               };
             });
-            setLessonProgress(prev => ({ ...prev, ...map }));
+            setLessonProgress((prev) => ({ ...prev, ...map }));
           }
         }
       } catch (e) {
@@ -215,29 +274,23 @@ export default function Player() {
         setLoading(false);
       }
     };
-
     loadData();
   }, [courseId, employee?._id]);
 
-  /* ================= COURSE COMPLETION LOGIC ================= */
-
   const isCourseCompleted = useCallback(() => {
     if (!course?.chapters) return false;
-
     for (let c = 0; c < course.chapters.length; c++) {
       const chapter = course.chapters[c];
       for (let l = 0; l < chapter.lessons.length; l++) {
         const key = `${c}-${l}`;
         const data = lessonProgress[key];
-        if (!data || data.progress < 100) {
-          return false;
-        }
+        if (!data || data.progress < 100) return false;
       }
     }
     return true;
   }, [course, lessonProgress]);
 
-  /* ================= NAVIGATION ================= */
+  /* ================= NAV & SAVE ================= */
 
   const prevLesson = () => {
     if (currentLessonIndex > 0) {
@@ -268,33 +321,22 @@ export default function Player() {
   };
 
   const toggleChapter = (cIdx) => {
-    setOpenChapters((prev) => ({
-      ...prev,
-      [cIdx]: !prev[cIdx],
-    }));
+    setOpenChapters((prev) => ({ ...prev, [cIdx]: !prev[cIdx] }));
   };
 
   const expandAllChapters = () => {
     const allOpen = {};
-    course?.chapters.forEach((_, idx) => {
-      allOpen[idx] = true;
-    });
+    course?.chapters.forEach((_, idx) => (allOpen[idx] = true));
     setOpenChapters(allOpen);
   };
 
-  const collapseAllChapters = () => {
-    setOpenChapters({});
-  };
+  const collapseAllChapters = () => setOpenChapters({});
 
-  /* ================= VIDEO LOGIC ================= */
-
-  // PROGRESS SAVER
   const saveProgress = useCallback(
     (percent, force = false) => {
       clearTimeout(saveTimer.current);
-
       const shouldSaveImmediately = force || percent >= 100;
-      const { cIdx, lIdx } = indicesRef.current; 
+      const { cIdx, lIdx } = indicesRef.current;
       const currentKey = `${cIdx}-${lIdx}`;
 
       saveTimer.current = setTimeout(() => {
@@ -323,9 +365,7 @@ export default function Player() {
                     .get(`${serverUrl}/api/courses/${courseId}`, {
                       withCredentials: true,
                     })
-                    .then((res) => {
-                      setCourse(res.data.course);
-                    })
+                    .then((res) => setCourse(res.data.course))
                     .catch((e) =>
                       console.error("Failed to refresh course data:", e)
                     );
@@ -349,45 +389,9 @@ export default function Player() {
     [employee, courseId]
   );
 
-  // PDF PROGRESS TRACKING (Time-based simulation)
-  useEffect(() => {
-    if (!currentLesson || !isPDF) return;
+  /* ================= EVENTS ================= */
 
-    // Estimate duration from lesson data or default to 60s
-    const durationSec = parseDurationToSeconds(currentLesson.duration) || 60;
-    setRealVideoDuration(durationSec);
-
-    // Initialize progress
-    const savedData = lessonProgress[progressKey];
-    const startPercent = savedData?.progress || 0;
-    setVisualTimePercent(startPercent);
-    lastSavedPercent.current = Math.floor(startPercent);
-
-    const interval = setInterval(() => {
-      setVisualTimePercent((prev) => {
-        if (prev >= 100) return 100;
-
-        const currentSec = (prev / 100) * durationSec;
-        const newSec = currentSec + 1; // Increment by 1 second
-        const newPercent = Math.min(100, (newSec / durationSec) * 100);
-
-        if (Math.floor(newPercent) > lastSavedPercent.current) {
-          lastSavedPercent.current = Math.floor(newPercent);
-          saveProgress(newPercent);
-        }
-        
-        if (newPercent >= 100) {
-          saveProgress(100, true);
-        }
-        
-        return newPercent;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [currentLesson, isPDF, progressKey, saveProgress]);
-
-  // VIDEO RESTORE & EVENTS
+  // Video Restore
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !currentLesson || isPDF) return;
@@ -397,7 +401,7 @@ export default function Player() {
 
     setVisualTimePercent(savedPercent);
     lastSavedPercent.current = Math.floor(savedPercent);
-    setIsLoadingVideo(true); 
+    setIsLoadingVideo(true);
 
     const resumeVideo = () => {
       if (video.duration) {
@@ -410,17 +414,41 @@ export default function Player() {
       setIsLoadingVideo(false);
     };
 
-    if (video.readyState >= 1) {
-      resumeVideo();
-    } else {
-      video.addEventListener("loadedmetadata", resumeVideo, { once: true });
-    }
+    if (video.readyState >= 1) resumeVideo();
+    else video.addEventListener("loadedmetadata", resumeVideo, { once: true });
   }, [progressKey, currentLesson, isPDF, lessonProgress]);
 
+  // PDF Scroll Tracker
+  const handlePdfScroll = useCallback(() => {
+    const container = pdfContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    // Calculate percentage
+    const scrolled = scrollTop + clientHeight;
+    const rawPercent = (scrolled / scrollHeight) * 100;
+    const newPercent = Math.min(100, rawPercent);
+
+    // Be lenient: if user is within 50px of bottom, call it 100%
+    const isAtBottom = scrollHeight - scrolled <= 50;
+    const finalPercent = isAtBottom ? 100 : newPercent;
+
+    setVisualTimePercent(finalPercent);
+
+    if (Math.floor(finalPercent) > lastSavedPercent.current) {
+      lastSavedPercent.current = Math.floor(finalPercent);
+      saveProgress(finalPercent);
+    }
+    
+    if (finalPercent >= 100) {
+      saveProgress(100, true);
+    }
+  }, [saveProgress]);
+
+  // Video Events
   const togglePlay = useCallback(async () => {
     const v = videoRef.current;
     if (!v || v.readyState < 1) return;
-
     try {
       if (v.paused) {
         await v.play();
@@ -429,35 +457,25 @@ export default function Player() {
         v.pause();
         setIsPlaying(false);
       }
-    } catch (e) {
-      console.error("Play failed", e);
-    }
+    } catch (e) { console.error("Play failed", e); }
   }, []);
 
   const seekToPercent = useCallback((percent) => {
     const v = videoRef.current;
     if (!v || !v.duration) return;
-
     isSeeking.current = true;
     v.currentTime = (percent / 100) * v.duration;
     setVisualTimePercent(percent);
-    
     lastSavedPercent.current = Math.floor(percent);
-
-    setTimeout(() => {
-      isSeeking.current = false;
-    }, 100);
+    setTimeout(() => { isSeeking.current = false; }, 100);
   }, []);
 
   const handleTimeUpdate = useCallback(() => {
     const v = videoRef.current;
     if (!v || isSeeking.current) return;
-
     const rawPercent = (v.currentTime / v.duration) * 100;
     const newPercent = Math.min(100, rawPercent);
-
     setVisualTimePercent(newPercent);
-
     if (Math.floor(newPercent) > lastSavedPercent.current) {
       lastSavedPercent.current = Math.floor(newPercent);
       saveProgress(newPercent);
@@ -470,35 +488,21 @@ export default function Player() {
     saveProgress(100, true);
   }, [saveProgress]);
 
-  /* ================= FULLSCREEN ================= */
-
   const toggleFullscreen = () => {
     const el = videoContainerRef.current;
     if (!el) return;
-
     if (!document.fullscreenElement) {
-      el.requestFullscreen()
-        .then(() => setIsFullscreen(true))
-        .catch((err) => console.error(err));
+      el.requestFullscreen().then(() => setIsFullscreen(true)).catch((e) => console.error(e));
     } else {
-      document
-        .exitFullscreen()
-        .then(() => setIsFullscreen(false))
-        .catch((err) => console.error(err));
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch((e) => console.error(e));
     }
   };
-
-  /* ================= DISPLAY HELPERS ================= */
 
   const displayCourseDuration = () => {
     if (!course?.chapters) return "0 min";
     let totalSeconds = 0;
-    course.chapters.forEach((chapter) => {
-      chapter.lessons.forEach((lesson) => {
-        if (lesson.duration) {
-          totalSeconds += parseDurationToSeconds(lesson.duration);
-        }
-      });
+    course.chapters.forEach((ch) => {
+      ch.lessons.forEach((l) => { if (l.duration) totalSeconds += parseDurationToSeconds(l.duration); });
     });
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -507,13 +511,9 @@ export default function Player() {
 
   const displayLessonDuration = () => {
     if (!currentLesson) return "0:00";
-    if (realVideoDuration && !isPDF) {
-      return formatTime(realVideoDuration);
-    }
+    if (realVideoDuration && !isPDF) return formatTime(realVideoDuration);
     return currentLesson.duration || "0:00";
   };
-
-  /* ================= RENDER ================= */
 
   if (loading) {
     return (
@@ -526,16 +526,10 @@ export default function Player() {
     );
   }
 
-  if (!course)
-    return (
-      <div className="p-10 text-center text-black">
-        Course not found.
-      </div>
-    );
+  if (!course) return <div className="p-10 text-center text-black">Course not found.</div>;
 
   return (
     <div className="min-h-screen flex flex-col font-sans bg-white text-black">
-      {/* HEADER */}
       <header className="sticky top-0 z-20 px-4 py-3 shadow-sm bg-white border-b">
         <div className="max-w-full mx-auto flex items-center justify-between">
           <div>
@@ -546,27 +540,18 @@ export default function Player() {
               {course.chapters?.length} chapters • {displayCourseDuration()}
             </p>
           </div>
-
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-md hover:bg-orange-50 text-black border border-orange-200"
-            >
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 rounded-md hover:bg-orange-50 text-black border border-orange-200">
               <FiMenu size={24} />
             </button>
-            <button
-              onClick={() => navigate(-1)}
-              className="text-sm font-medium text-black hover:text-orange-500"
-            >
+            <button onClick={() => navigate(-1)} className="text-sm font-medium text-black hover:text-orange-500">
               Exit
             </button>
           </div>
         </div>
       </header>
 
-      {/* MAIN */}
       <div className="flex flex-1 relative max-w-full overflow-hidden">
-        {/* LEFT: VIDEO */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-5xl mx-auto">
             <div
@@ -575,37 +560,44 @@ export default function Player() {
             >
               {currentLesson?.video ? (
                 isPDF ? (
-                  <>
-                    <iframe
-                      ref={pdfIframeRef}
-                      src={
-                        currentLesson.video.startsWith("/uploads")
-                          ? `${serverUrl}${currentLesson.video}`
-                          : currentLesson.video
-                      }
-                      className="w-full h-full block bg-white"
-                      title="PDF Viewer"
-                    />
-                    {/* PDF PROGRESS OVERLAY */}
-                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent pointer-events-none">
-                      <div className="flex items-center justify-between text-white text-xs mb-1 font-medium">
-                        <span className="flex items-center gap-2">
-                          <FiFileText /> Reading Progress
-                        </span>
-                        <span>{Math.round(visualTimePercent)}%</span>
+                  /* --- PDF VIEWER (Custom Scrollable) --- */
+                  <div 
+                    ref={pdfContainerRef}
+                    onScroll={handlePdfScroll}
+                    className="w-full h-full bg-gray-100 overflow-y-auto relative"
+                  >
+                    {pdfDoc ? (
+                      <div className="flex flex-col items-center py-4 space-y-4">
+                        {pdfPages.map((pageNum) => (
+                          <div key={pageNum} className="shadow-lg">
+                            <canvas
+                              ref={(el) => {
+                                if (el) renderPage(pageNum, el);
+                              }}
+                              className="bg-white"
+                            />
+                          </div>
+                        ))}
                       </div>
-                      <div className="w-full bg-gray-600/50 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                          className="bg-orange-500 h-full rounded-full transition-all duration-1000 ease-linear"
-                          style={{ width: `${visualTimePercent}%` }}
-                        />
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-gray-500">
+                        Loading PDF...
                       </div>
+                    )}
+
+                    {/* PDF Overlay Progress */}
+                    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-white text-xs font-medium pointer-events-none z-50 shadow-lg">
+                      <span className="flex items-center gap-2">
+                        <FiFileText size={14} /> 
+                        {Math.round(visualTimePercent)}% Read
+                      </span>
                     </div>
-                  </>
+                  </div>
                 ) : (
+                  /* --- VIDEO PLAYER --- */
                   <>
                     <video
-                      key={currentLesson.video} /* Force remount for flawless switch */
+                      key={currentLesson.video}
                       ref={videoRef}
                       src={
                         currentLesson.video.startsWith("/uploads")
@@ -624,19 +616,13 @@ export default function Player() {
                         }
                       }}
                       onEnded={handleVideoEnded}
-                      onPlay={() => {
-                        setIsPlaying(true);
-                        setIsLoadingVideo(false);
-                      }}
+                      onPlay={() => { setIsPlaying(true); setIsLoadingVideo(false); }}
                       onPause={() => setIsPlaying(false)}
                       onLoadStart={() => setIsLoadingVideo(true)}
                       onCanPlay={() => setIsLoadingVideo(false)}
                       onWaiting={() => setIsLoadingVideo(true)}
                       onPlaying={() => setIsLoadingVideo(false)}
-                      onError={(e) => {
-                        console.error("Video Error:", e);
-                        setIsLoadingVideo(false);
-                      }}
+                      onError={(e) => { console.error("Video Error:", e); setIsLoadingVideo(false); }}
                     />
 
                     {isLoadingVideo && (
@@ -657,10 +643,8 @@ export default function Player() {
                       <div
                         className="relative w-full h-1.5 bg-gray-700/70 rounded-full cursor-pointer hover:h-2 transition-all mb-4"
                         onClick={(e) => {
-                          const rect =
-                            e.currentTarget.getBoundingClientRect();
-                          const percent =
-                            ((e.clientX - rect.left) / rect.width) * 100;
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const percent = ((e.clientX - rect.left) / rect.width) * 100;
                           seekToPercent(percent);
                         }}
                       >
@@ -674,63 +658,35 @@ export default function Player() {
 
                       <div className="flex items-center justify-between text-white">
                         <div className="flex items-center gap-4">
-                          <button
-                            onClick={togglePlay}
-                            className="hover:text-orange-400 transition-colors"
-                          >
-                            {isPlaying ? (
-                              <FiPause size={20} />
-                            ) : (
-                              <FiPlay size={20} />
-                            )}
+                          <button onClick={togglePlay} className="hover:text-orange-400 transition-colors">
+                            {isPlaying ? <FiPause size={20} /> : <FiPlay size={20} />}
                           </button>
-
                           <div className="flex items-center gap-1 text-xs font-mono text-gray-200">
-                            <span>
-                              {videoRef.current
-                                ? formatTime(videoRef.current.currentTime)
-                                : "0:00"}
-                            </span>
+                            <span>{videoRef.current ? formatTime(videoRef.current.currentTime) : "0:00"}</span>
                             <span>/</span>
                             <span>{displayLessonDuration()}</span>
                           </div>
                         </div>
-
                         <div className="flex items-center gap-4">
                           <div className="relative group/speed">
-                            <button className="text-xs font-bold hover:text-orange-300 w-8">
-                              {speed}x
-                            </button>
+                            <button className="text-xs font-bold hover:text-orange-300 w-8">{speed}x</button>
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/speed:flex flex-col bg-black/90 rounded p-1 border border-gray-700">
                               {[0.5, 1, 1.5, 2].map((s) => (
                                 <button
                                   key={s}
                                   onClick={() => {
                                     setSpeed(s);
-                                    if (videoRef.current)
-                                      videoRef.current.playbackRate = s;
+                                    if (videoRef.current) videoRef.current.playbackRate = s;
                                   }}
-                                  className={`px-2 py-1 text-xs hover:bg-white/10 rounded ${
-                                    speed === s
-                                      ? "text-orange-300"
-                                      : "text-white"
-                                  }`}
+                                  className={`px-2 py-1 text-xs hover:bg-white/10 rounded ${speed === s ? "text-orange-300" : "text-white"}`}
                                 >
                                   {s}x
                                 </button>
                               ))}
                             </div>
                           </div>
-
-                          <button
-                            onClick={toggleFullscreen}
-                            className="hover:text-orange-400"
-                          >
-                            {isFullscreen ? (
-                              <FiMinimize size={20} />
-                            ) : (
-                              <FiMaximize size={20} />
-                            )}
+                          <button onClick={toggleFullscreen} className="hover:text-orange-400">
+                            {isFullscreen ? <FiMinimize size={20} /> : <FiMaximize size={20} />}
                           </button>
                         </div>
                       </div>
@@ -750,17 +706,13 @@ export default function Player() {
                   {currentLesson?.title || "Welcome to the Course"}
                 </h2>
                 <p className="text-gray-600 text-sm">
-                  Chapter {currentChapterIndex + 1} • Lesson{" "}
-                  {currentLessonIndex + 1}
+                  Chapter {currentChapterIndex + 1} • Lesson {currentLessonIndex + 1}
                 </p>
               </div>
-
               <div className="flex items-center gap-3">
                 <button
                   onClick={prevLesson}
-                  disabled={
-                    currentChapterIndex === 0 && currentLessonIndex === 0
-                  }
+                  disabled={currentChapterIndex === 0 && currentLessonIndex === 0}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium bg-white text-black hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FiSkipBack /> Previous
@@ -776,7 +728,6 @@ export default function Player() {
           </div>
         </main>
 
-        {/* RIGHT: SIDEBAR */}
         <aside
           className={`
             fixed inset-y-0 right-0 z-30 w-80 bg-white border-l shadow-2xl transform transition-transform duration-300 lg:translate-x-0 lg:static lg:shadow-none
@@ -787,15 +738,10 @@ export default function Player() {
             <div className="p-4 border-b bg-white">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-bold text-black">Course Content</h3>
-                <button
-                  onClick={() => setSidebarOpen(false)}
-                  className="lg:hidden text-gray-500 hover:text-black"
-                >
+                <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-gray-500 hover:text-black">
                   <FiX size={20} />
                 </button>
               </div>
-              
-              {/* TOTAL COURSE PROGRESS BAR */}
               <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
                 <span className="font-medium text-orange-700">{overallProgress}% Completed</span>
               </div>
@@ -809,43 +755,24 @@ export default function Player() {
 
             <div className="flex-1 overflow-y-auto p-2">
               <div className="flex justify-end gap-2 mb-2 px-2">
-                <button
-                  onClick={expandAllChapters}
-                  className="text-xs text-orange-600 font-medium hover:underline"
-                >
-                  Expand All
-                </button>
+                <button onClick={expandAllChapters} className="text-xs text-orange-600 font-medium hover:underline">Expand All</button>
                 <span className="text-gray-300">|</span>
-                <button
-                  onClick={collapseAllChapters}
-                  className="text-xs text-orange-600 font-medium hover:underline"
-                >
-                  Collapse All
-                </button>
+                <button onClick={collapseAllChapters} className="text-xs text-orange-600 font-medium hover:underline">Collapse All</button>
               </div>
 
               {course.chapters?.map((chapter, cIdx) => {
                 const isOpen = openChapters[cIdx];
                 return (
-                  <div
-                    key={cIdx}
-                    className="mb-2 border rounded-lg overflow-hidden bg-white"
-                  >
+                  <div key={cIdx} className="mb-2 border rounded-lg overflow-hidden bg-white">
                     <button
                       onClick={() => toggleChapter(cIdx)}
                       className="w-full flex items-center justify-between p-3 bg-orange-50 hover:bg-orange-100 transition-colors text-left"
                     >
                       <div>
-                        <span className="text-xs font-bold text-orange-700 uppercase tracking-wider">
-                          Chapter {cIdx + 1}
-                        </span>
-                        <div className="text-sm font-semibold text-black">
-                          {chapter.title}
-                        </div>
+                        <span className="text-xs font-bold text-orange-700 uppercase tracking-wider">Chapter {cIdx + 1}</span>
+                        <div className="text-sm font-semibold text-black">{chapter.title}</div>
                       </div>
-                      <span className="text-orange-500 text-lg">
-                        {isOpen ? "-" : "+"}
-                      </span>
+                      <span className="text-orange-500 text-lg">{isOpen ? "-" : "+"}</span>
                     </button>
 
                     {isOpen && (
@@ -855,61 +782,26 @@ export default function Player() {
                           const data = lessonProgress[key];
                           const percent = Math.round(data?.progress || 0);
                           const isCompleted = percent >= 100;
-                          const isActive =
-                            cIdx === currentChapterIndex &&
-                            lIdx === currentLessonIndex;
+                          const isActive = cIdx === currentChapterIndex && lIdx === currentLessonIndex;
 
                           return (
                             <button
                               key={lIdx}
                               onClick={() => selectLesson(cIdx, lIdx)}
-                              className={`w-full flex items-start gap-3 p-3 transition-colors text-left
-                                ${
-                                  isActive
-                                    ? "bg-orange-50 border-l-4 border-orange-500"
-                                    : "hover:bg-gray-50 border-l-4 border-transparent"
-                                }
-                              `}
+                              className={`w-full flex items-start gap-3 p-3 transition-colors text-left ${isActive ? "bg-orange-50 border-l-4 border-orange-500" : "hover:bg-gray-50 border-l-4 border-transparent"}`}
                             >
                               <div className="mt-0.5">
                                 {isCompleted ? (
                                   <FiCheckCircle className="text-green-500 w-4 h-4" />
                                 ) : (
-                                  <div
-                                    className={`w-4 h-4 rounded-full border-2 ${
-                                      isActive
-                                        ? "border-orange-500"
-                                        : "border-gray-300"
-                                    }`}
-                                  />
+                                  <div className={`w-4 h-4 rounded-full border-2 ${isActive ? "border-orange-500" : "border-gray-300"}`} />
                                 )}
                               </div>
                               <div className="flex-1">
-                                <div
-                                  className={`text-sm ${
-                                    isActive
-                                      ? "font-bold text-black"
-                                      : "text-gray-800"
-                                  }`}
-                                >
-                                  {lesson.title}
-                                </div>
+                                <div className={`text-sm ${isActive ? "font-bold text-black" : "text-gray-800"}`}>{lesson.title}</div>
                                 <div className="flex items-center justify-between mt-1">
-                                  <span className="text-xs text-gray-500">
-                                    {lesson.duration || "0:00"}
-                                  </span>
-                                  
-                                  {/* LESSON PERCENTAGE BADGE */}
-                                  <span 
-                                    className={`text-[10px] px-1.5 py-0.5 rounded font-medium
-                                      ${isCompleted 
-                                        ? "bg-green-100 text-green-700" 
-                                        : percent > 0 
-                                          ? "bg-orange-100 text-orange-700" 
-                                          : "bg-gray-100 text-gray-400"
-                                      }
-                                    `}
-                                  >
+                                  <span className="text-xs text-gray-500">{lesson.duration || "0:00"}</span>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${isCompleted ? "bg-green-100 text-green-700" : percent > 0 ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-400"}`}>
                                     {percent}%
                                   </span>
                                 </div>
@@ -923,35 +815,23 @@ export default function Player() {
                 );
               })}
 
-              {isCourseCompleted() &&
-                course.quiz &&
-                course.quiz.published && (
-                  <div className="mt-6 mb-10 px-2">
-                    <div className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-xl text-center">
-                      <h4 className="font-bold text-orange-800 mb-1">
-                        Course Completed!
-                      </h4>
-                      <p className="text-xs text-orange-700 mb-3">
-                        You have finished all lessons.
-                      </p>
-                      <button
-                        onClick={() => navigate(`/quiz/${courseId}`)}
-                        className="w-full py-2.5 bg-black hover:bg-gray-900 text-white rounded-lg font-semibold shadow-md transition-all flex items-center justify-center gap-2"
-                      >
-                        <FiCheckCircle /> Take Final Quiz
-                      </button>
-                    </div>
+              {isCourseCompleted() && course.quiz && course.quiz.published && (
+                <div className="mt-6 mb-10 px-2">
+                  <div className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 border border-orange-200 rounded-xl text-center">
+                    <h4 className="font-bold text-orange-800 mb-1">Course Completed!</h4>
+                    <p className="text-xs text-orange-700 mb-3">You have finished all lessons.</p>
+                    <button onClick={() => navigate(`/quiz/${courseId}`)} className="w-full py-2.5 bg-black hover:bg-gray-900 text-white rounded-lg font-semibold shadow-md transition-all flex items-center justify-center gap-2">
+                      <FiCheckCircle /> Take Final Quiz
+                    </button>
                   </div>
-                )}
+                </div>
+              )}
             </div>
           </div>
         </aside>
 
         {sidebarOpen && (
-          <div
-            className="fixed inset-0 z-20 bg-black/50 lg:hidden backdrop-blur-sm"
-            onClick={() => setSidebarOpen(false)}
-          />
+          <div className="fixed inset-0 z-20 bg-black/50 lg:hidden backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
         )}
       </div>
     </div>
