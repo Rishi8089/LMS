@@ -415,97 +415,139 @@ export const getCourseQuiz = async (req, res) => {
  * Submit quiz answers
  */
 export const submitQuiz = async (req, res) => {
-    try {
-        const { courseId } = req.params;
-        const { answers } = req.body; // Array of { questionId, selectedOptions }
-        const employeeId = req.employee.id;
+  try {
+    const { courseId } = req.params;
+    const { answers } = req.body; // [{ questionId, selectedOptions }]
+    const employeeId = req.employee.id;
 
-        // Check if employee is enrolled in the course (check both Enrollment model and enrolledCourses array for backward compatibility)
-        const enrollment = await Enrollment.findOne({ employee: employeeId, course: courseId });
-        const employee = await Employee.findById(employeeId);
-        const isEnrolledInArray = employee?.enrolledCourses?.some(ec => ec.course.toString() === courseId);
-
-        if (!enrollment && !isEnrolledInArray) {
-            return res.status(403).json({ success: false, message: "Not enrolled in this course" });
-        }
-
-        // If no enrollment record but enrolled in array, create enrollment record for quiz submission
-        let enrollmentData = enrollment;
-        if (!enrollment && isEnrolledInArray) {
-            enrollmentData = await Enrollment.create({
-                employee: employeeId,
-                course: courseId,
-                status: 'completed', // Since they completed the course
-                progress: 100,
-                quizCompleted: false,
-                enrollmentDate: new Date(),
-                lastAccessed: new Date()
-            });
-        }
-
-        // Get the course and its quiz
-        const course = await Course.findById(courseId);
-        if (!course || !course.quiz) {
-            return res.status(404).json({ success: false, message: "Quiz not found" });
-        }
-
-        // Calculate score
-        let correctCount = 0;
-        let totalQuestions = course.quiz.questions.length;
-
-        const detailedResults = course.quiz.questions.map(question => {
-            const userAnswer = answers.find(a => a.questionId === question._id.toString());
-            const selectedOptions = userAnswer ? userAnswer.selectedOptions : [];
-            const isCorrect = JSON.stringify(selectedOptions.sort()) === JSON.stringify(question.correctAnswers.sort());
-
-            if (isCorrect) correctCount++;
-
-            return {
-                questionId: question._id,
-                questionText: question.text,
-                selectedOptions,
-                correctOptions: question.correctAnswers,
-                isCorrect
-            };
-        });
-
-        const score = Math.round((correctCount / totalQuestions) * 100);
-        const passed = score >= (course.quiz.passingScore || 0);
-
-        // Push new attempt to quizAttempts array
-        enrollmentData.quizAttempts.push({
-            score,
-            passed,
-            submittedAt: new Date()
-        });
-
-        // Update quizCompleted based on latest attempt
-        enrollmentData.quizCompleted = true;
-
-        await enrollmentData.save();
-
-        // Update the employee's enrolledCourses array to keep it in sync
-        if (employee) {
-            const enrolledCourse = employee.enrolledCourses.find(
-                ec => ec.course.toString() === courseId.toString()
-            );
-            if (enrolledCourse) {
-                enrolledCourse.quizCompleted = true;
-                await employee.save();
-            }
-        }
-
-        const result = {
-            score,
-            correctCount,
-            totalQuestions,
-            passed,
-            detailedResults
-        };
-
-        res.status(200).json({ success: true, result });
-    } catch (err) {
-        console.error("Error submitting quiz:", err);
-        res.status(500).json({ success: false, message: "Server error" });
+    if (!Array.isArray(answers)) {
+      return res.status(400).json({
+        success: false,
+        message: "Answers must be an array"
+      });
     }
+
+    // 1️⃣ Check enrollment
+    let enrollment = await Enrollment.findOne({
+      employee: employeeId,
+      course: courseId
+    });
+
+    const employee = await Employee.findById(employeeId);
+
+    const isEnrolledInArray = employee?.enrolledCourses?.some(
+      ec => ec.course.toString() === courseId.toString()
+    );
+
+    if (!enrollment && !isEnrolledInArray) {
+      return res.status(403).json({
+        success: false,
+        message: "Not enrolled in this course"
+      });
+    }
+
+    // 2️⃣ Create enrollment if missing (IMPORTANT FIX)
+    if (!enrollment && isEnrolledInArray) {
+      enrollment = await Enrollment.create({
+        employee: employeeId,
+        course: courseId,
+        status: "in-progress",
+        progress: 0,
+        quizCompleted: false,
+        quizAttempts: [], // ✅ IMPORTANT
+        enrollmentDate: new Date(),
+        lastAccessed: new Date()
+      });
+    }
+
+    // 3️⃣ Fetch course & quiz
+    const course = await Course.findById(courseId);
+    if (!course || !course.quiz || !Array.isArray(course.quiz.questions)) {
+      return res.status(404).json({
+        success: false,
+        message: "Quiz not found"
+      });
+    }
+
+    // 4️⃣ Calculate score
+    let correctCount = 0;
+    const totalQuestions = course.quiz.questions.length;
+
+    const detailedResults = course.quiz.questions.map(question => {
+      const userAnswer = answers.find(
+        a => a.questionId === question._id.toString()
+      );
+
+      const selectedOptions = userAnswer?.selectedOptions || [];
+
+      const isCorrect =
+        JSON.stringify([...selectedOptions].sort()) ===
+        JSON.stringify([...question.correctAnswers].sort());
+
+      if (isCorrect) correctCount++;
+
+      return {
+        questionId: question._id,
+        questionText: question.text,
+        selectedOptions,
+        correctOptions: question.correctAnswers,
+        isCorrect
+      };
+    });
+
+    const score = Math.round((correctCount / totalQuestions) * 100);
+    const passed = score >= (course.quiz.passingScore || 0);
+
+    // 5️⃣ SAFETY CHECK (CRITICAL FIX)
+    if (!Array.isArray(enrollment.quizAttempts)) {
+      enrollment.quizAttempts = [];
+    }
+
+    // 6️⃣ PUSH OBJECT (THIS FIXES YOUR ERROR)
+    enrollment.quizAttempts.push({
+      score,
+      passed,
+      submittedAt: new Date()
+    });
+
+    // 7️⃣ Update enrollment state
+    enrollment.quizCompleted = true;
+    enrollment.progress = 100;
+    enrollment.status = "completed";
+    enrollment.lastAccessed = new Date();
+
+    await enrollment.save();
+
+    // 8️⃣ Sync employee.enrolledCourses
+    if (employee) {
+      const enrolledCourse = employee.enrolledCourses.find(
+        ec => ec.course.toString() === courseId.toString()
+      );
+
+      if (enrolledCourse) {
+        enrolledCourse.quizCompleted = true;
+        await employee.save();
+      }
+    }
+
+    // 9️⃣ Final response
+    return res.status(200).json({
+      success: true,
+      result: {
+        score,
+        correctCount,
+        totalQuestions,
+        passed,
+        attempts: enrollment.quizAttempts.length,
+        detailedResults
+      }
+    });
+
+  } catch (err) {
+    console.error("Error submitting quiz:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
 };
