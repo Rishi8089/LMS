@@ -32,22 +32,20 @@ const enrollmentSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    quizAttempts: {
-        type: Number,
-        default: 0
-    },
-    quizScore: {
-        type: Number,
-        default: null
-    },
-    quizPassed: {
-        type: Boolean,
-        default: false
-    },
-    quizSubmittedAt: {
-        type: Date,
-        default: null
-    },
+    quizAttempts: [{
+        score: {
+            type: Number,
+            required: true
+        },
+        passed: {
+            type: Boolean,
+            required: true
+        },
+        submittedAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
     lessonProgress: [{
         chapterIndex: { type: Number, required: true },
         lessonIndex: { type: Number, required: true },

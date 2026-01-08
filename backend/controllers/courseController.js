@@ -431,3 +431,42 @@ export const deleteCourse = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+/**
+ * ✅ Get quiz attempts for a course
+ */
+export const getQuizAttemptsForCourse = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+
+    if (!courseId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ success: false, message: "Invalid course ID" });
+    }
+
+    // Find all enrollments for the course and populate employee data
+    const enrollments = await Enrollment.find({ course: courseId })
+      .populate('employee', 'name email')
+      .select('employee quizAttempts');
+
+    if (!enrollments || enrollments.length === 0) {
+      return res.status(404).json({ success: false, message: "No enrollments found for this course" });
+    }
+
+    // Transform the data to include employee info with their quiz attempts
+    const quizAttempts = enrollments
+      .filter(enrollment => enrollment.quizAttempts && enrollment.quizAttempts.length > 0)
+      .map(enrollment => ({
+        employee: {
+          _id: enrollment.employee._id,
+          name: enrollment.employee.name,
+          email: enrollment.employee.email
+        },
+        attempts: enrollment.quizAttempts
+      }));
+
+    res.status(200).json({ success: true, quizAttempts });
+  } catch (err) {
+    console.error("Get Quiz Attempts Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

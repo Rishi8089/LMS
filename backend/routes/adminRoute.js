@@ -12,7 +12,7 @@ import {
   getMandatoryCourses,
   getEnrolledEmployeesForCourse,
 } from '../controllers/adminController.js';
-import { createCourse, getCourses, updateCourse, deleteCourse } from '../controllers/courseController.js';
+import { createCourse, getCourses, updateCourse, deleteCourse, getQuizAttemptsForCourse } from '../controllers/courseController.js';
 import isAdmin from '../middleware/isAdmin.js';
 
 const adminRoute = express.Router();
@@ -47,5 +47,6 @@ adminRoute.delete('/courses/:id', isAdmin, deleteCourse);
 // Mandatory courses and enrollments routes (protected)
 adminRoute.get('/mandatory-courses', isAdmin, getMandatoryCourses);
 adminRoute.get('/course/:courseId/enrolled-employees', isAdmin, getEnrolledEmployeesForCourse);
+adminRoute.get('/quiz-attempts/:courseId', isAdmin, getQuizAttemptsForCourse);
 
 export default adminRoute;

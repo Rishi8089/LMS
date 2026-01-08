@@ -12,7 +12,7 @@ const CourseSchema = new mongoose.Schema({
     },
     hours: {
         type: Number,
-        required: true
+        required: false
     },
     difficulty: {
         type: String,

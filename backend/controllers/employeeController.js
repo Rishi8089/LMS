@@ -291,14 +291,23 @@ export const updateLessonProgress = async (req, res) => {
         // Calculate and update overall course progress
         const courseProgressData = await calculateCourseProgress(enrollment, courseId);
 
-        // If course is completed, publish the quiz
-        if (courseProgressData && courseProgressData.progress >= 100) {
-            await Course.findByIdAndUpdate(courseId, {
-                'quiz.published': true
-            });
-        }
-
         await enrollment.save();
+
+        // Update the employee's enrolledCourses array to keep it in sync
+        const employee = await Employee.findById(employeeId);
+        if (employee) {
+            const enrolledCourse = employee.enrolledCourses.find(
+                ec => ec.course.toString() === courseId.toString()
+            );
+            if (enrolledCourse) {
+                enrolledCourse.status = enrollment.status;
+                enrolledCourse.progress = enrollment.progress;
+                enrolledCourse.completedLessons = enrollment.completedLessons;
+                enrolledCourse.totalLessons = enrollment.totalLessons;
+                enrolledCourse.lessonProgress = enrollment.lessonProgress;
+                await employee.save();
+            }
+        }
 
         res.status(200).json({
             success: true,
@@ -331,9 +340,8 @@ export const getCourseQuiz = async (req, res) => {
 
         // Use enrollment if exists, otherwise create a minimal enrollment object from array
         const enrollmentData = enrollment || {
-            quizAttempts: 0,
-            quizPassed: false,
-            quizScore: 0
+            quizAttempts: [],
+            quizCompleted: false
         };
 
         // Get the course and its quiz
@@ -354,24 +362,28 @@ export const getCourseQuiz = async (req, res) => {
 
         // Check attempt limits
         const maxAttempts = course.quiz.maxAttempts || 1;
-        if (enrollmentData.quizAttempts >= maxAttempts) {
+        const attemptsUsed = enrollmentData.quizAttempts.length;
+        if (attemptsUsed >= maxAttempts) {
+            const lastAttempt = enrollmentData.quizAttempts[enrollmentData.quizAttempts.length - 1];
             return res.status(403).json({
                 success: false,
                 message: `You have reached the maximum number of attempts (${maxAttempts}) for this quiz.`,
-                attemptsUsed: enrollmentData.quizAttempts,
-                maxAttempts: maxAttempts,
-                passed: enrollmentData.quizPassed,
-                score: enrollmentData.quizScore
+                attemptsUsed,
+                maxAttempts,
+                passed: lastAttempt?.passed || false,
+                score: lastAttempt?.score || 0
             });
         }
 
         // If already passed, don't allow retaking
-        if (enrollmentData.quizPassed) {
+        const hasPassed = enrollmentData.quizAttempts.some(attempt => attempt.passed);
+        if (hasPassed) {
+            const lastAttempt = enrollmentData.quizAttempts[enrollmentData.quizAttempts.length - 1];
             return res.status(403).json({
                 success: false,
                 message: "You have already passed this quiz.",
                 passed: true,
-                score: enrollmentData.quizScore
+                score: lastAttempt?.score || 0
             });
         }
 
@@ -460,12 +472,28 @@ export const submitQuiz = async (req, res) => {
         const score = Math.round((correctCount / totalQuestions) * 100);
         const passed = score >= (course.quiz.passingScore || 0);
 
-        // Update enrollment
+        // Push new attempt to quizAttempts array
+        enrollmentData.quizAttempts.push({
+            score,
+            passed,
+            submittedAt: new Date()
+        });
+
+        // Update quizCompleted based on latest attempt
         enrollmentData.quizCompleted = true;
-        enrollmentData.quizScore = score;
-        enrollmentData.quizPassed = passed;
-        enrollmentData.quizSubmittedAt = new Date();
+
         await enrollmentData.save();
+
+        // Update the employee's enrolledCourses array to keep it in sync
+        if (employee) {
+            const enrolledCourse = employee.enrolledCourses.find(
+                ec => ec.course.toString() === courseId.toString()
+            );
+            if (enrolledCourse) {
+                enrolledCourse.quizCompleted = true;
+                await employee.save();
+            }
+        }
 
         const result = {
             score,

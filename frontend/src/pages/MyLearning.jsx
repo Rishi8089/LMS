@@ -65,11 +65,13 @@ const MyLearning = () => {
 
     const course = enrollment.course;
 
+
+
     // 2. Safe Title Match (Prevents crash if title is undefined)
     const courseTitle = course.title ? course.title.toLowerCase() : "";
     const matchesName = courseTitle.includes(searchTerm.toLowerCase());
 
-    // 3. Mandatory Filter
+    // 3. Mandatory Filter (though mandatory are excluded, keep for consistency)
     const matchesMandatory =
       mandatoryFilter === "all"
         ? true

@@ -6,7 +6,6 @@ import {
   FiPlus,
   FiEdit,
   FiTrash,
-  FiBook,
   FiX,
   FiFolder,
   FiCheckSquare,
@@ -15,6 +14,8 @@ import {
   FiCalendar,
   FiImage,
   FiFileText,
+  FiEye, // Imported Eye icon
+  FiUser, // Imported User icon
 } from "react-icons/fi";
 import { Loader2 } from "lucide-react";
 import useFolderProcessor from "../../customHook/useFolderProcessor.js";
@@ -25,6 +26,13 @@ const CourseManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [quizForm, setQuizForm] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
+
+  // --- NEW STATE FOR QUIZ ATTEMPTS MODAL ---
+  const [showAttemptsModal, setShowAttemptsModal] = useState(false);
+  const [attemptsLoading, setAttemptsLoading] = useState(false);
+  const [currentCourseAttempts, setCurrentCourseAttempts] = useState([]);
+  const [selectedCourseTitle, setSelectedCourseTitle] = useState("");
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -81,6 +89,27 @@ const CourseManagement = () => {
       toast.error("Failed to load courses.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // --- NEW FUNCTION TO HANDLE VIEWING ATTEMPTS ---
+  const handleViewAttempts = async (courseId, courseTitle) => {
+    setSelectedCourseTitle(courseTitle);
+    setShowAttemptsModal(true);
+    setAttemptsLoading(true);
+    setCurrentCourseAttempts([]); // Reset previous data
+
+    try {
+      // NOTE: Ensure this endpoint exists in your backend
+      const res = await axios.get(`${serverUrl}/api/admin/quiz-attempts/${courseId}`, {
+        withCredentials: true,
+      });
+      setCurrentCourseAttempts(res.data.attempts || []);
+    } catch (error) {
+      console.error("fetchAttempts error:", error);
+      // toast.error("Failed to load attempts."); 
+    } finally {
+      setAttemptsLoading(false);
     }
   };
 
@@ -349,7 +378,7 @@ const CourseManagement = () => {
     "inline-flex items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-semibold py-3 px-6 rounded-lg transition-colors duration-200";
 
   return (
-    <div className="min-h-screen bg-gray-50/50 p-6 sm:p-10 font-sans">
+    <div className="min-h-screen bg-gray-50/50 p-6 sm:p-10 font-sans relative">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
         <div>
@@ -784,7 +813,7 @@ const CourseManagement = () => {
               </div>
             </>
           ) : (
-/* ============================================ QUIZ FORM START =============================================== */
+            /* ============================================ QUIZ FORM START =============================================== */
             <div
               className={`${cardClass} shadow-xl border-t-4 border-t-black`}
             >
@@ -868,6 +897,7 @@ const CourseManagement = () => {
                   </div>
                 </div>
 
+                {/* Shuffle Questions and Options */}
                 <div className="flex gap-6 pb-4 border-b border-gray-100">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -1092,11 +1122,11 @@ const CourseManagement = () => {
                 </div>
               </div>
             </div>
-/* =========================================== QUIZ FORM END ================================================= */
+            /* =========================================== QUIZ FORM END ================================================= */
           )}
         </div>
       ) : (
-/*========================================  Course List Table ===================================================*/
+        /*========================================  Course List Table ===================================================*/
         <div className="bg-white border border-orange-100 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.06)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse">
@@ -1114,6 +1144,10 @@ const CourseManagement = () => {
                   <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
                     Mandatory
                   </th>
+                  {/* --- NEW COLUMN HEADER --- */}
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
+                    Quiz Reports
+                  </th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
                     Actions
                   </th>
@@ -1124,7 +1158,7 @@ const CourseManagement = () => {
                 {courses.length === 0 ? (
                   <tr>
                     <td
-                      colSpan="5"
+                      colSpan="6"
                       className="px-6 py-10 text-center text-gray-500 text-sm"
                     >
                       No courses found. Click “Create Course” to create one.
@@ -1133,17 +1167,12 @@ const CourseManagement = () => {
                 ) : (
                   courses.map((c) => (
                     <tr key={c._id} className="hover:bg-gray-50 transition">
-                      {/* Title */}
                       <td className="px-6 py-4 text-sm font-medium text-black">
                         {c.title}
                       </td>
-
-                      {/* Duration */}
                       <td className="px-6 py-4 text-sm text-center text-gray-600">
                         {c.hours}h
                       </td>
-
-                      {/* Difficulty */}
                       <td className="px-6 py-4 text-sm text-center">
                         <span
                           className={`px-2 py-1 rounded-full text-xs font-medium
@@ -1158,13 +1187,20 @@ const CourseManagement = () => {
                           {c.difficulty}
                         </span>
                       </td>
-
-                      {/* Mandatory */}
                       <td className="px-6 py-4 text-sm text-center text-gray-600">
                         {c.mandatory ? "Yes" : "No"}
                       </td>
 
-                      {/* Actions */}
+                      {/* --- NEW COLUMN CELL: QUIZ ATTEMPTS BUTTON --- */}
+                      <td className="px-6 py-4 text-sm text-center">
+                        <button
+                          onClick={() => handleViewAttempts(c._id, c.title)}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:text-orange-700 rounded-md text-xs font-bold transition-colors border border-orange-200"
+                        >
+                          <FiEye className="w-3 h-3" /> View List
+                        </button>
+                      </td>
+
                       <td className="px-6 py-4 text-sm text-center">
                         <div className="flex justify-center gap-4">
                           <button
@@ -1186,6 +1222,105 @@ const CourseManagement = () => {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* --- NEW MODAL FOR DISPLAYING QUIZ ATTEMPTS --- */}
+      {showAttemptsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  Quiz Attempts
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Course: {selectedCourseTitle}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAttemptsModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {attemptsLoading ? (
+                <div className="flex flex-col items-center justify-center py-10 text-gray-500">
+                  <Loader2 className="w-8 h-8 animate-spin text-orange-500 mb-2" />
+                  <p>Fetching attempts...</p>
+                </div>
+              ) : currentCourseAttempts.length === 0 ? (
+                <div className="text-center py-10 text-gray-500 border-2 border-dashed border-gray-200 rounded-xl">
+                  <FiUser className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                  <p>No attempts recorded for this course yet.</p>
+                </div>
+              ) : (
+                <div className="overflow-hidden border border-gray-200 rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                          Employee Name
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">
+                          Score
+                        </th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">
+                          Status
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">
+                          Date
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {currentCourseAttempts.map((attempt, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                            {attempt.employeeName || "Unknown Employee"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-center text-gray-700">
+                            {attempt.score}%
+                          </td>
+                          <td className="px-4 py-3 text-sm text-center">
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                attempt.passed
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-red-100 text-red-700"
+                              }`}
+                            >
+                              {attempt.passed ? "PASSED" : "FAILED"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-500">
+                            {attempt.date
+                              ? new Date(attempt.date).toLocaleDateString()
+                              : "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={() => setShowAttemptsModal(false)}
+                className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
