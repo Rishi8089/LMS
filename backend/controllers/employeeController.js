@@ -55,29 +55,15 @@ export const addEmployee = async (req, res) => {
                     lastAccessed: new Date()
                 });
 
-                // Add to employee's enrolledCourses array
-                employee.enrolledCourses.push({
-                    course: course._id,
-                    enrollmentDate: new Date(),
-                    status: "enrolled",
-                    progress: 0,
-                });
-
                 console.log(`Auto-enrolled employee ${employee.name} in mandatory course: ${course.title} (Enrollment ID: ${enrollment._id})`);
             } catch (enrollmentError) {
                 console.error(`Failed to enroll employee ${employee.name} in course ${course.title}:`, enrollmentError);
             }
         }
 
-        // Save the employee with enrolled courses
-        await employee.save();
-
-        // Populate the enrolled courses for the response
-        const populatedEmployee = await Employee.findById(employee._id).populate('enrolledCourses.course');
-
         res.status(201).json({
             success: true,
-            employee: populatedEmployee,
+            employee: employee,
             message: `Employee created and enrolled in ${mandatoryCourses.length} mandatory courses`
         });
     } catch (err) {
@@ -88,7 +74,7 @@ export const addEmployee = async (req, res) => {
 export const getEmployeeById = async (req, res) => {
     try {
         const { id } = req.params;
-        const employee = await Employee.findById(id).populate('enrolledCourses.course');
+        const employee = await Employee.findById(id);
         if (!employee) {
             return res.status(404).json({ message: "Employee not found" });
         }
@@ -131,21 +117,6 @@ export const enrollCourse = async (req, res) => {
             progress: 0,
             quizCompleted: false
         });
-
-        // Update employee's enrolledCourses array
-        const alreadyEnrolled = employee.enrolledCourses.some(
-            (enrolled) => enrolled.course.toString() === courseId.toString()
-        );
-
-        if (!alreadyEnrolled) {
-            employee.enrolledCourses.push({
-                course: courseId,
-                enrollmentDate: new Date(),
-                status: "enrolled",
-                progress: 0,
-            });
-            await employee.save();
-        }
 
         res.status(200).json({ success: true, message: "Enrolled successfully", enrollment });
     } catch (err) {
@@ -191,15 +162,11 @@ export const enrolledCourses = async (req, res) => {
 export const checkEnrollment = async (req, res) => {
     try {
         const { employeeId, courseId } = req.params;
-        const employee = await Employee.findById(employeeId);
 
-        if (!employee) {
-            return res.status(404).json({ success: false, message: "Employee not found" });
-        }
+        // Check if enrollment exists
+        const enrollment = await Enrollment.findOne({ employee: employeeId, course: courseId });
 
-        const isEnrolled = employee.enrolledCourses.some(ec => ec.course.toString() === courseId);
-
-        res.status(200).json({ success: true, enrolled: isEnrolled });
+        res.status(200).json({ success: true, enrolled: !!enrollment });
     } catch (err) {
         console.error("Error checking enrollment:", err);
         res.status(500).json({ success: false, message: "Server error" });
@@ -293,22 +260,6 @@ export const updateLessonProgress = async (req, res) => {
 
         await enrollment.save();
 
-        // Update the employee's enrolledCourses array to keep it in sync
-        const employee = await Employee.findById(employeeId);
-        if (employee) {
-            const enrolledCourse = employee.enrolledCourses.find(
-                ec => ec.course.toString() === courseId.toString()
-            );
-            if (enrolledCourse) {
-                enrolledCourse.status = enrollment.status;
-                enrolledCourse.progress = enrollment.progress;
-                enrolledCourse.completedLessons = enrollment.completedLessons;
-                enrolledCourse.totalLessons = enrollment.totalLessons;
-                enrolledCourse.lessonProgress = enrollment.lessonProgress;
-                await employee.save();
-            }
-        }
-
         res.status(200).json({
             success: true,
             message: "Lesson progress updated",
@@ -329,20 +280,15 @@ export const getCourseQuiz = async (req, res) => {
         const { courseId } = req.params;
         const employeeId = req.employee.id;
 
-        // Check if employee is enrolled in the course (check both Enrollment model and enrolledCourses array for backward compatibility)
+        // Check if employee is enrolled in the course
         const enrollment = await Enrollment.findOne({ employee: employeeId, course: courseId });
-        const employee = await Employee.findById(employeeId);
-        const isEnrolledInArray = employee?.enrolledCourses?.some(ec => ec.course.toString() === courseId);
 
-        if (!enrollment && !isEnrolledInArray) {
+        if (!enrollment) {
             return res.status(403).json({ success: false, message: "Not enrolled in this course" });
         }
 
-        // Use enrollment if exists, otherwise create a minimal enrollment object from array
-        const enrollmentData = enrollment || {
-            quizAttempts: [],
-            quizCompleted: false
-        };
+        // Use enrollment data
+        const enrollmentData = enrollment;
 
         // Get the course and its quiz
         const course = await Course.findById(courseId);
@@ -428,35 +374,15 @@ export const submitQuiz = async (req, res) => {
     }
 
     // 1️⃣ Check enrollment
-    let enrollment = await Enrollment.findOne({
+    const enrollment = await Enrollment.findOne({
       employee: employeeId,
       course: courseId
     });
 
-    const employee = await Employee.findById(employeeId);
-
-    const isEnrolledInArray = employee?.enrolledCourses?.some(
-      ec => ec.course.toString() === courseId.toString()
-    );
-
-    if (!enrollment && !isEnrolledInArray) {
+    if (!enrollment) {
       return res.status(403).json({
         success: false,
         message: "Not enrolled in this course"
-      });
-    }
-
-    // 2️⃣ Create enrollment if missing (IMPORTANT FIX)
-    if (!enrollment && isEnrolledInArray) {
-      enrollment = await Enrollment.create({
-        employee: employeeId,
-        course: courseId,
-        status: "in-progress",
-        progress: 0,
-        quizCompleted: false,
-        quizAttempts: [], // ✅ IMPORTANT
-        enrollmentDate: new Date(),
-        lastAccessed: new Date()
       });
     }
 
@@ -517,18 +443,6 @@ export const submitQuiz = async (req, res) => {
     enrollment.lastAccessed = new Date();
 
     await enrollment.save();
-
-    // 8️⃣ Sync employee.enrolledCourses
-    if (employee) {
-      const enrolledCourse = employee.enrolledCourses.find(
-        ec => ec.course.toString() === courseId.toString()
-      );
-
-      if (enrolledCourse) {
-        enrolledCourse.quizCompleted = true;
-        await employee.save();
-      }
-    }
 
     // 9️⃣ Final response
     return res.status(200).json({

@@ -1,5 +1,6 @@
 import Employee from "../models/EmployeeModel.js";
 import Course from "../models/CourseModel.js";
+import Enrollment from "../models/EnrollmentsModel.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -9,12 +10,7 @@ const dashboard = async (req, res) => {
     const totalEmployees = await Employee.countDocuments();
     const totalCourses = await Course.countDocuments();
     const mandatoryCourses = await Course.countDocuments({ mandatory: true });
-    const enrolledCourses = await Employee.aggregate([
-      { $unwind: "$enrolledCourses" },
-      { $group: { _id: null, totalEnrollments: { $sum: 1 } } },
-    ]);
-    const totalEnrollments =
-      enrolledCourses.length > 0 ? enrolledCourses[0].totalEnrollments : 0;
+    const totalEnrollments = await Enrollment.countDocuments();
     res.status(200).json({
       success: true,
       stats: {
@@ -81,15 +77,26 @@ const employeeRegister = async (req, res) => {
     }
     const hashed = await bcrypt.hash(password, 10);
     const employee = await Employee.create({ name, email, phone, password: hashed });
+
     // Auto-enroll in mandatory courses
     const mandatoryCourses = await Course.find({ mandatory: true });
     if (mandatoryCourses.length > 0) {
       const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // +30 days
-      employee.enrolledCourses = mandatoryCourses.map((course) => ({
-        course: course._id,
-        dueDate: dueDate,
-      }));
-      await employee.save();
+
+      await Enrollment.insertMany(
+        mandatoryCourses.map((course) => ({
+          employee: employee._id,
+          course: course._id,
+          dueDate,
+          status: "enrolled",
+          progress: 0,
+          quizCompleted: false,
+          lessonProgress: [],
+          lastAccessed: new Date()
+        }))
+      );
+
+      console.log(`Auto-enrolled employee ${employee.name} in ${mandatoryCourses.length} mandatory courses`);
     }
     res.status(201).json({
       success: true,
@@ -257,30 +264,29 @@ const updateEmployee = async (req, res) => {
 const getEmployeeCourses = async (req, res) => {
   try {
     const { id } = req.params;
-    const employee = await Employee.findById(id).populate({
-      path: 'enrolledCourses.course',
-      model: 'Course'
-    });
 
-    if (!employee) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Employee not found" });
+    // Find all enrollments for this employee and populate course data
+    const enrollments = await Enrollment.find({ employee: id })
+      .populate('course', 'title description hours difficulty mandatory')
+      .select('course enrollmentDate dueDate status progress');
+
+    if (!enrollments) {
+      return res.status(404).json({ success: false, message: "No enrollments found for this employee" });
     }
 
-    const courses = employee.enrolledCourses
-      .filter(ec => ec.course) // Filter out any null courses
-      .map(ec => ({
-        _id: ec.course._id,
-        title: ec.course.title,
-        description: ec.course.description,
-        hours: ec.course.hours,
-        difficulty: ec.course.difficulty,
-        mandatory: ec.course.mandatory,
-        enrollmentDate: ec.enrollmentDate,
-        dueDate: ec.dueDate,
-        status: ec.status,
-        progress: ec.progress,
+    const courses = enrollments
+      .filter(enrollment => enrollment.course) // Filter out any null courses
+      .map(enrollment => ({
+        _id: enrollment.course._id,
+        title: enrollment.course.title,
+        description: enrollment.course.description,
+        hours: enrollment.course.hours,
+        difficulty: enrollment.course.difficulty,
+        mandatory: enrollment.course.mandatory,
+        enrollmentDate: enrollment.enrollmentDate,
+        dueDate: enrollment.dueDate,
+        status: enrollment.status,
+        progress: enrollment.progress,
       }));
 
     res.status(200).json({
@@ -329,13 +335,25 @@ const getMandatoryCourses = async (req, res) => {
 const getEnrolledEmployeesForCourse = async (req, res) => {
   try {
     const { courseId } = req.params;
-    const employees = await Employee.find({
-      "enrolledCourses.course": courseId
-    }).select("name email phone").populate({
-      path: "enrolledCourses",
-      match: { course: courseId },
-      select: "enrollmentDate dueDate status progress"
-    });
+
+    // Find all enrollments for this course and populate employee data
+    const enrollments = await Enrollment.find({ course: courseId })
+      .populate('employee', 'name email phone')
+      .select('employee enrollmentDate dueDate status progress');
+
+    // Transform the data to match the expected format
+    const employees = enrollments.map(enrollment => ({
+      name: enrollment.employee.name,
+      email: enrollment.employee.email,
+      phone: enrollment.employee.phone,
+      enrolledCourses: [{
+        enrollmentDate: enrollment.enrollmentDate,
+        dueDate: enrollment.dueDate,
+        status: enrollment.status,
+        progress: enrollment.progress
+      }]
+    }));
+
     res.status(200).json({ success: true, employees });
   } catch (error) {
     console.error("Get enrolled employees error:", error);

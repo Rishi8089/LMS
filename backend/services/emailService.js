@@ -47,35 +47,30 @@ const checkAndSendDueDateReminders = async () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // Find employees with courses due in 3 days
-    const employeesWithDueCourses = await Employee.find({
-      'enrolledCourses.dueDate': {
+    // Find enrollments with courses due in 3 days
+    const dueEnrollments = await Enrollment.find({
+      dueDate: {
         $gte: tomorrow,
         $lte: threeDaysFromNow
       },
-      'enrolledCourses.status': 'enrolled'
-    }).populate('enrolledCourses.course');
+      status: 'enrolled'
+    }).populate('employee', 'name email').populate('course', 'title');
 
-    console.log(`Found ${employeesWithDueCourses.length} employees with courses due in 3 days`);
+    console.log(`Found ${dueEnrollments.length} enrollments with courses due in 3 days`);
 
-    for (const employee of employeesWithDueCourses) {
-      for (const enrolledCourse of employee.enrolledCourses) {
-        if (enrolledCourse.dueDate && enrolledCourse.status === 'enrolled') {
-          const dueDate = new Date(enrolledCourse.dueDate);
-          const daysDiff = Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24));
+    for (const enrollment of dueEnrollments) {
+      if (enrollment.dueDate && enrollment.status === 'enrolled') {
+        const dueDate = new Date(enrollment.dueDate);
+        const daysDiff = Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24));
 
-          if (daysDiff === 3) {
-            const course = await Course.findById(enrolledCourse.course);
-            if (course) {
-              console.log(`Sending reminder to ${employee.email} for course ${course.title}`);
-              await sendDueDateReminder(
-                employee.email,
-                employee.name,
-                course.title,
-                dueDate
-              );
-            }
-          }
+        if (daysDiff === 3 && enrollment.employee && enrollment.course) {
+          console.log(`Sending reminder to ${enrollment.employee.email} for course ${enrollment.course.title}`);
+          await sendDueDateReminder(
+            enrollment.employee.email,
+            enrollment.employee.name,
+            enrollment.course.title,
+            dueDate
+          );
         }
       }
     }

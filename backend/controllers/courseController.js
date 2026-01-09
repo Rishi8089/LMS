@@ -46,29 +46,31 @@ function parseDuration(durationStr) {
 const enrollAllEmployeesInCourse = async (courseId, dueDate) => {
   try {
     const employees = await Employee.find();
-    
-    // We update employees one by one to ensure safety, or use bulkWrite for performance
-    // For now, simpler loop approach:
-    for (const employee of employees) {
-      const alreadyEnrolled = employee.enrolledCourses.some(
-        (enrolled) => enrolled.course.toString() === courseId.toString()
-      );
 
-      if (!alreadyEnrolled) {
-        employee.enrolledCourses.push({
+    // Create enrollment records for each employee
+    for (const employee of employees) {
+      // Check if already enrolled using Enrollment model
+      const existingEnrollment = await Enrollment.findOne({
+        employee: employee._id,
+        course: courseId
+      });
+
+      if (!existingEnrollment) {
+        await Enrollment.create({
+          employee: employee._id,
           course: courseId,
           enrollmentDate: new Date(),
           dueDate: dueDate,
           status: "enrolled",
           progress: 0,
+          quizCompleted: false,
           lessonProgress: [],
-          completedLessons: 0,
-          totalLessons: 0,
+          lastAccessed: new Date()
         });
-        await employee.save();
+        console.log(`Auto-enrolled employee ${employee.name} in mandatory course: ${courseId}`);
       }
     }
-    console.log(`Auto-enrolled employees in course: ${courseId}`);
+    console.log(`Auto-enrolled all employees in course: ${courseId}`);
   } catch (error) {
     console.error("Error enrolling employees:", error);
   }

@@ -47,7 +47,7 @@ const MyLearning = () => {
       }
     };
 
-    if (isLoggedIn) {
+    if (isLoggedIn && employee) {
       fetchEnrolledCourses();
     } else {
       setLoading(false);
@@ -56,7 +56,7 @@ const MyLearning = () => {
     return () => {
       isMounted = false;
     };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, employee?._id]);
 
   // --- SAFE FILTERING LOGIC ---
   let filteredCourses = courses.filter((enrollment) => {

@@ -81,6 +81,17 @@ export const AuthProvider = ({ children }) => {
 
   // --- Login (set state after successful login API) ---
   const login = (userData, admin = false) => {
+    // Clear any previous state first
+    setUser(null);
+    setIsLoggedIn(false);
+    setIsAdmin(false);
+
+    // Clear Redux store for previous user
+    if (window.store) {
+      window.store.dispatch({ type: 'employee/clearEmployee' });
+    }
+
+    // Then set new state
     setUser(userData);
     setIsLoggedIn(true);
     setIsAdmin(admin);
@@ -103,12 +114,28 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       setIsLoggedIn(false);
       setIsAdmin(false);
+
+      // Clear all localStorage data
+      localStorage.clear();
+
+      // Clear Redux store
+      if (window.store) {
+        window.store.dispatch({ type: 'employee/clearEmployee' });
+      }
     } catch (error) {
       console.error("Logout API call failed:", error);
-      // Even if API fails, reset state
+      // Even if API fails, reset state and clear storage
       setUser(null);
       setIsLoggedIn(false);
       setIsAdmin(false);
+
+      // Clear all localStorage data
+      localStorage.clear();
+
+      // Clear Redux store
+      if (window.store) {
+        window.store.dispatch({ type: 'employee/clearEmployee' });
+      }
     }
   };
 

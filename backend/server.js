@@ -79,12 +79,6 @@ if (process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET) {
                 Date.now() + 30 * 24 * 60 * 60 * 1000
               );
 
-              employee.enrolledCourses = mandatoryCourses.map((course) => ({
-                course: course._id,
-                dueDate,
-              }));
-              await employee.save();
-
               await Enrollment.insertMany(
                 mandatoryCourses.map((course) => ({
                   employee: employee._id,
@@ -92,9 +86,13 @@ if (process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET) {
                   dueDate,
                   status: "enrolled",
                   progress: 0,
+                  quizCompleted: false,
                   lessonProgress: [],
+                  lastAccessed: new Date()
                 }))
               );
+
+              console.log(`Auto-enrolled SSO user ${employee.name} in ${mandatoryCourses.length} mandatory courses`);
             }
           }
 

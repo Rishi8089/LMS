@@ -58,8 +58,12 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Logout API call failed:", error);
     } finally {
+      // Reset state
       setUser(null);
       setIsLoggedIn(false);
+
+      // Clear all localStorage data
+      localStorage.clear();
     }
   };
 

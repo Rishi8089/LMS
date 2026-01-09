@@ -4,6 +4,7 @@ import validator from "validator";
 import passport from "passport";
 import Employee from "../models/EmployeeModel.js";
 import Course from "../models/CourseModel.js";
+import Enrollment from "../models/EnrollmentsModel.js";
 
 // Unified helper function for consistent cookie settings
 const cookieOptions = (days = 1) => ({

@@ -27,9 +27,13 @@ import AdminSideBar from "./components/admin/SideBar.jsx";
 import AdminFooter from "./components/admin/Footer.jsx";
 
 import { serverUrl } from "./config.js";
+import store from "./redux/store.js";
 
 const App = () => {
   const { isLoggedIn, isAdmin } = useContext(AuthContext);
+
+  // Make store available globally for auth context
+  window.store = store;
 
   // Call the custom hook with isLoggedIn status
   getCurrentEmployee(isLoggedIn);

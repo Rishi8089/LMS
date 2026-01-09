@@ -40,49 +40,7 @@ const EmployeeSchema = new mongoose.Schema({
         unique: true,
         sparse: true
     },
-    enrolledCourses: [
-  {
-    course: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Course",
-      required: false
-    },
-    enrollmentDate: {
-      type: Date,
-      default: Date.now
-    },
-    dueDate: {
-      type: Date,
-      default: null
-    },
-    status: {
-      type: String,
-      enum: ['enrolled', 'completed'],
-      default: 'enrolled'
-    },
-    progress: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 100
-    },
-    completedLessons: {
-      type: Number,
-      default: 0
-    },
-    totalLessons: {
-      type: Number,
-      default: 0
-    },
-    lessonProgress: [{
-      chapterIndex: { type: Number, required: true },
-      lessonIndex: { type: Number, required: true },
-      progress: { type: Number, default: 0, min: 0, max: 100 }, // 0-100
-      completed: { type: Boolean, default: false },
-      lastAccessed: { type: Date, default: Date.now }
-    }]
-  }
-]
+
 
 }, { timestamps: true });
 
