@@ -112,9 +112,10 @@ const CourseManagement = () => {
         employeeData.attempts.forEach(attempt => {
           flatAttempts.push({
             employeeName: employeeData.employee.name,
+            employeeEmail: employeeData.employee.email,
             score: attempt.score,
             passed: attempt.passed,
-            date: attempt.attemptDate
+            date: attempt.submittedAt
           });
         });
       });
@@ -1283,8 +1284,11 @@ const CourseManagement = () => {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
                           Employee Name
                         </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                          Email
+                        </th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">
-                          Score
+                          Quiz Marks
                         </th>
                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">
                           Status
@@ -1299,6 +1303,9 @@ const CourseManagement = () => {
                         <tr key={index} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">
                             {attempt.employeeName || "Unknown Employee"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-left text-gray-700">
+                            {attempt.employeeEmail || "N/A"}
                           </td>
                           <td className="px-4 py-3 text-sm text-center text-gray-700">
                             {attempt.score}%
