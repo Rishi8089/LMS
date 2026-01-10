@@ -118,7 +118,7 @@ export const createCourse = [
       const { title, description, hours, difficulty, mandatory, chapters, quiz, dueDate } = req.body;
 
       // 1. Validation
-      if (!title || !description || !hours || !difficulty) {
+      if (!title || !description || !difficulty) {
         return res.status(400).json({ success: false, message: "All required fields must be filled" });
       }
 
@@ -215,14 +215,17 @@ export const createCourse = [
       const courseData = {
         title: title.trim(),
         description,
-        hours: calculatedHours > 0 ? calculatedHours : Number(hours),
+        hours: calculatedHours || (hours ? Number(hours) : null),
         difficulty,
         mandatory: mandatory === "true" || mandatory === true,
-        dueDate: dueDate || null, 
         images: imageUrl,
         chapters: parsedChapters,
         quiz: parsedQuiz,
       };
+
+      if (dueDate) {
+        courseData.dueDate = new Date(dueDate);
+      }
 
       const newCourse = await Course.create(courseData);
 
@@ -378,19 +381,24 @@ export const updateCourse = [
       const calculatedHours = +(totalDurationSeconds / 3600).toFixed(2);
 
       // Perform Update
+      const updateData = {
+        title: title ? title.trim() : currentCourse.title,
+        description: description || currentCourse.description,
+        hours: calculatedHours || (hours ? Number(hours) : currentCourse.hours),
+        difficulty: difficulty || currentCourse.difficulty,
+        mandatory: isNowMandatory,
+        images: updatedImageUrl,
+        chapters: parsedChapters,
+        quiz: parsedQuiz,
+      };
+
+      if (dueDate !== undefined) {
+        updateData.dueDate = dueDate ? new Date(dueDate) : null;
+      }
+
       const updatedCourse = await Course.findByIdAndUpdate(
         id,
-        {
-          title: title ? title.trim() : currentCourse.title,
-          description: description || currentCourse.description,
-          hours: calculatedHours > 0 ? calculatedHours : (hours ? Number(hours) : currentCourse.hours),
-          difficulty: difficulty || currentCourse.difficulty,
-          mandatory: isNowMandatory,
-          dueDate: dueDate || currentCourse.dueDate,
-          images: updatedImageUrl,
-          chapters: parsedChapters,
-          quiz: parsedQuiz,
-        },
+        updateData,
         { new: true, runValidators: true }
       );
 

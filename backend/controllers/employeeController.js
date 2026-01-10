@@ -280,6 +280,18 @@ export const updateLessonProgress = async (req, res) => {
 };
 
 /**
+ * Shuffle array using Fisher-Yates algorithm
+ */
+const shuffleArray = (array) => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+};
+
+/**
  * Get quiz for a course
  */
 export const getCourseQuiz = async (req, res) => {
@@ -340,6 +352,28 @@ export const getCourseQuiz = async (req, res) => {
             });
         }
 
+        // Prepare questions with shuffling
+        let processedQuestions = questions.map(q => ({
+            _id: q._id,
+            text: q.text,
+            type: q.type,
+            options: q.options,
+            correctAnswers: q.correctAnswers // Keep for scoring, but don't send to frontend
+        }));
+
+        // Shuffle questions if enabled
+        if (course.quiz.shuffleQuestions) {
+            processedQuestions = shuffleArray(processedQuestions);
+        }
+
+        // Shuffle options for each question if enabled
+        if (course.quiz.shuffleOptions) {
+            processedQuestions = processedQuestions.map(q => ({
+                ...q,
+                options: shuffleArray(q.options)
+            }));
+        }
+
         // Return quiz data (without correct answers)
         const quizData = {
             _id: course.quiz._id,
@@ -349,7 +383,7 @@ export const getCourseQuiz = async (req, res) => {
             passingScore: course.quiz.passingScore || 0,
             maxAttempts: maxAttempts,
             attemptsUsed: enrollmentData.quizAttempts,
-            questions: questions.map(q => ({
+            questions: processedQuestions.map(q => ({
                 _id: q._id,
                 text: q.text,
                 type: q.type,
@@ -448,6 +482,11 @@ export const submitQuiz = async (req, res) => {
     enrollment.progress = 100;
     enrollment.status = "completed";
     enrollment.lastAccessed = new Date();
+
+    // Clear due date if quiz is passed
+    if (passed) {
+        enrollment.dueDate = null;
+    }
 
     await enrollment.save();
 

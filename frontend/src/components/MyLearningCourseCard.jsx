@@ -84,8 +84,8 @@ const MyLearningCourseCard = ({
 
             {/* Hours and Mandatory */}
             <div className="flex items-center gap-4 mb-2">
-              {!containsPdf && (
-                <p className="text-sm text-gray-500">{hours} Hours</p>
+              {!containsPdf && hours && (
+                <p className="text-sm text-gray-500">{Math.round(hours * 60)} Minutes</p>
               )}
               {mandatory && (
                 <span className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full">

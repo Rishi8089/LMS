@@ -155,7 +155,7 @@ const CourseManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.title.trim() || Number(formData.hours) <= 0) {
+    if (!formData.title.trim()) {
       toast.warn("Please fill all required fields correctly.");
       return;
     }
@@ -483,13 +483,13 @@ const CourseManagement = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {/* Duration */}
                     <div className="relative">
-                      <label className={labelClass}>Duration (Hours)</label>
+                      <label className={labelClass}>Duration</label>
                       <div className="relative">
                         <FiClock className="absolute left-3 top-3.5 text-gray-400" />
                         <input
                           type="number"
                           name="hours"
-                          min="1"
+                          min="0"
                           value={formData.hours}
                           onChange={handleChange}
                           className={`${inputClass} pl-10`}
@@ -1187,7 +1187,7 @@ const CourseManagement = () => {
                         {c.title}
                       </td>
                       <td className="px-6 py-4 text-sm text-center text-gray-600">
-                        {c.hours}h
+                        {c.hours ? `${Math.round(c.hours * 60)} Minutes` : 'N/A'}
                       </td>
                       <td className="px-6 py-4 text-sm text-center">
                         <span

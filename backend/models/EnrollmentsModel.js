@@ -16,8 +16,7 @@ const enrollmentSchema = new mongoose.Schema({
         default: Date.now
     },
     dueDate: {
-        type: Date,
-        default: null
+        type: Date
     },
     status: {
         type: String,
