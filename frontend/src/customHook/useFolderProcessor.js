@@ -89,6 +89,10 @@ const useFolderProcessor = () => {
         // Expect CourseFolder/ChapterFolder/LessonFile.ext (min 3 parts)
         if (parts.length < 3) continue;
 
+        // Only process video files as lessons
+        const fileType = file.type || "";
+        if (!fileType.startsWith("video/")) continue;
+
         if (!mainCourseTitle) mainCourseTitle = parts[0];
         const chapterName = parts[1];
         const lessonPath = parts.slice(2).join("/");

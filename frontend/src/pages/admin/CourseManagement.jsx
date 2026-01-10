@@ -293,6 +293,7 @@ const CourseManagement = () => {
         ],
       },
     });
+    setCourseData({ title: null, chapters: [] }); // Reset imported course data
     setEditingCourse(null);
     setShowForm(false);
     setQuizForm(false);
