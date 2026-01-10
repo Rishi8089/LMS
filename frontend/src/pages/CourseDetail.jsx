@@ -15,11 +15,41 @@ const CourseDetails = () => {
   const [loading, setLoading] = useState(true);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
-  const [expandedChapters, setExpandedChapters] = useState(new Set([0]));
+  const [expandedChapters, setExpandedChapters] = useState(new Set());
+  const [isContentExpanded, setIsContentExpanded] = useState(false);
 
   const { isLoggedIn } = useContext(AuthContext);
   const employee = getCurrentEmployee(isLoggedIn);
   const navigate = useNavigate();
+
+  const formatDuration = (hours) => {
+    if (hours == null) return "Duration not available";
+    if (hours < 1) {
+      const minutes = Math.round(hours * 60);
+      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    } else {
+      const roundedHours = Math.round(hours);
+      return `${roundedHours} hour${roundedHours !== 1 ? 's' : ''}`;
+    }
+  };
+
+  const formatLessonDuration = (durationStr) => {
+    if (!durationStr) return "";
+    const parts = durationStr.split(":").map(Number);
+    let totalSeconds = 0;
+    if (parts.length === 3) totalSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    else if (parts.length === 2) totalSeconds = parts[0] * 60 + parts[1];
+    else if (parts.length === 1) totalSeconds = parts[0];
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${minutes}m`;
+    }
+  };
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -154,7 +184,7 @@ const CourseDetails = () => {
             <p className="text-gray-600 mb-1 text-lg capitalize">
               {course.difficulty} level
             </p>
-            <p className="text-gray-500 mb-4">{course.hours} hours</p>
+            <p className="text-gray-500 mb-4">{formatDuration(course.hours)}</p>
             <p className="text-gray-700 leading-relaxed mb-6 text-justify">
               {course.description}
             </p>
@@ -192,7 +222,7 @@ const CourseDetails = () => {
       <div className="my-10 border-t border-black"></div>
 
       <div className="w-full md:w-3/4 mx-auto">
-        <h3 className="text-2xl font-semibold text-gray-800 mb-4 text-center">
+        <h3 className="text-2xl font-semibold text-gray-800 mb-4">
           Course Content
         </h3>
 
@@ -206,7 +236,20 @@ const CourseDetails = () => {
                 <h4 className="font-medium text-gray-800">
                   Chapter {chapterIndex + 1}: {chapter.title}
                 </h4>
+                <span className="text-gray-600">
+                  {expandedChapters.has(chapterIndex) ? '-' : '+'}
+                </span>
               </button>
+              {expandedChapters.has(chapterIndex) && (
+                <div className="mt-2 ml-6 space-y-2">
+                  {chapter.lessons?.map((lesson, lessonIndex) => (
+                    <div key={lessonIndex} className="text-gray-600 text-sm flex justify-between">
+                      <span>{lesson.title}</span>
+                      <span>{formatLessonDuration(lesson.duration)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
