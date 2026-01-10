@@ -182,7 +182,7 @@ const Quiz = () => {
             <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
               <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Attempts</p>
               <p className="text-2xl font-black text-gray-800 mt-1">
-                {result.attemptsUsed} <span className="text-sm text-gray-400 font-medium">/ {result.maxAttempts}</span>
+                {result.attempts} <span className="text-sm text-gray-400 font-medium">/ {quiz.maxAttempts}</span>
               </p>
             </div>
             <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
@@ -240,7 +240,7 @@ const Quiz = () => {
             Question {currentQuestionIndex + 1} of {quiz.questions.length}
             {quiz.attemptsUsed && quiz.maxAttempts && (
               <span className="ml-4 text-orange-600 font-semibold">
-                Attempt {quiz.attemptsUsed} of {quiz.maxAttempts}
+                Attempt {quiz.attemptsUsed.length} of {quiz.maxAttempts}
               </span>
             )}
           </p>

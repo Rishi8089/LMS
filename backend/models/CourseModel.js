@@ -67,7 +67,7 @@ const CourseSchema = new mongoose.Schema({
         maxAttempts: { type: Number, default: 1 },
         shuffleQuestions: { type: Boolean, default: false },
         shuffleOptions: { type: Boolean, default: false },
-        passingPercentage: { type: Number, default: 0 },
+        passingScore: { type: Number, default: 0 },
         published: { type: Boolean, default: false },
         questions: [{
             text: {

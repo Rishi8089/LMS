@@ -51,7 +51,7 @@ const CourseManagement = () => {
       maxAttempts: 1,
       shuffleQuestions: false,
       shuffleOptions: false,
-      passingPercentage: 0,
+      passingScore: 0,
       published: false,
       questions: [
         {
@@ -104,10 +104,25 @@ const CourseManagement = () => {
       const res = await axios.get(`${serverUrl}/api/admin/quiz-attempts/${courseId}`, {
         withCredentials: true,
       });
-      setCurrentCourseAttempts(res.data.attempts || []);
+
+      // Transform nested backend data to flat attempts array
+      const quizAttempts = res.data.quizAttempts || [];
+      const flatAttempts = [];
+      quizAttempts.forEach(employeeData => {
+        employeeData.attempts.forEach(attempt => {
+          flatAttempts.push({
+            employeeName: employeeData.employee.name,
+            score: attempt.score,
+            passed: attempt.passed,
+            date: attempt.attemptDate
+          });
+        });
+      });
+
+      setCurrentCourseAttempts(flatAttempts);
     } catch (error) {
       console.error("fetchAttempts error:", error);
-      // toast.error("Failed to load attempts."); 
+      // toast.error("Failed to load attempts.");
     } finally {
       setAttemptsLoading(false);
     }
@@ -263,7 +278,7 @@ const CourseManagement = () => {
         maxAttempts: 1,
         shuffleQuestions: false,
         shuffleOptions: false,
-        passingPercentage: 0,
+        passingScore: 0,
         published: false,
         questions: [
           {
@@ -302,7 +317,7 @@ const CourseManagement = () => {
         maxAttempts: 1,
         shuffleQuestions: false,
         shuffleOptions: false,
-        passingPercentage: 0,
+        passingScore: 0,
         published: false,
         questions: [
           {
@@ -839,17 +854,17 @@ const CourseManagement = () => {
                 {/* Quiz Settings */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   <div>
-                    <label className={labelClass}>Passing Percentage (%)</label>
+                    <label className={labelClass}>Passing Score (%)</label>
                     <input
                       type="number"
-                      name="passingPercentage"
-                      value={formData.quiz.passingPercentage}
+                      name="passingScore"
+                      value={formData.quiz.passingScore}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
                           quiz: {
                             ...formData.quiz,
-                            passingPercentage: e.target.value,
+                            passingScore: e.target.value,
                           },
                         })
                       }

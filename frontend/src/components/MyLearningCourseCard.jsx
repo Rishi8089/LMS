@@ -16,6 +16,7 @@ const MyLearningCourseCard = ({
   completedLessons,
   totalLessons,
   quizCompleted,
+  quizPassed,
 }) => {
   const getDifficultyColor = (level) => {
     switch (level?.toLowerCase()) {
@@ -136,9 +137,15 @@ const MyLearningCourseCard = ({
             {status === 'completed' && (
               <div className="mt-2">
                 {quizCompleted ? (
-                  <p className="text-xs text-blue-600 font-medium">
-                    📝 Quiz completed ✓
-                  </p>
+                  quizPassed ? (
+                    <p className="text-xs text-green-600 font-medium">
+                      📝 Quiz passed ✓
+                    </p>
+                  ) : (
+                    <p className="text-xs text-red-600 font-medium">
+                      📝 Quiz failed ✗
+                    </p>
+                  )
                 ) : (
                   <p className="text-xs text-orange-600 font-medium">
                     📝 Quiz pending - Complete to finish course

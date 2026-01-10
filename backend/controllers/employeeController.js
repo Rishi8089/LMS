@@ -137,17 +137,24 @@ export const enrolledCourses = async (req, res) => {
         }
 
         // Transform enrollments to match the expected format
-        const courses = enrollments.map(enrollment => ({
-            _id: enrollment._id,
-            course: enrollment.course,
-            progress: enrollment.progress || 0,
-            status: enrollment.status || 'in-progress',
-            completedLessons: enrollment.completedLessons || 0,
-            totalLessons: enrollment.totalLessons || 0,
-            dueDate: enrollment.dueDate,
-            quizCompleted: enrollment.quizCompleted || false,
-            lessonProgress: enrollment.lessonProgress || []
-        }));
+        const courses = enrollments.map(enrollment => {
+            // Check if quiz was passed (any attempt with passed: true)
+            const quizPassed = Array.isArray(enrollment.quizAttempts) &&
+                enrollment.quizAttempts.some(attempt => attempt.passed === true);
+
+            return {
+                _id: enrollment._id,
+                course: enrollment.course,
+                progress: enrollment.progress || 0,
+                status: enrollment.status || 'in-progress',
+                completedLessons: enrollment.completedLessons || 0,
+                totalLessons: enrollment.totalLessons || 0,
+                dueDate: enrollment.dueDate,
+                quizCompleted: enrollment.quizCompleted || false,
+                quizPassed: quizPassed,
+                lessonProgress: enrollment.lessonProgress || []
+            };
+        });
 
         res.status(200).json({
             success: true,
@@ -445,6 +452,7 @@ export const submitQuiz = async (req, res) => {
     await enrollment.save();
 
     // 9️⃣ Final response
+    const canRetake = !passed && enrollment.quizAttempts.length < course.quiz.maxAttempts;
     return res.status(200).json({
       success: true,
       result: {
@@ -453,6 +461,7 @@ export const submitQuiz = async (req, res) => {
         totalQuestions,
         passed,
         attempts: enrollment.quizAttempts.length,
+        canRetake,
         detailedResults
       }
     });

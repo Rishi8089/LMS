@@ -16,6 +16,11 @@ import {
   FiMaximize,
   FiMinimize,
   FiFileText,
+  FiZoomIn,
+  FiZoomOut,
+  FiRotateCcw,
+  FiChevronLeft,
+  FiChevronRight,
 } from "react-icons/fi";
 
 /* ================= HELPERS ================= */
@@ -39,6 +44,23 @@ function isPdfFileDescriptor(file) {
   return typeof file === "string" && file.toLowerCase().endsWith(".pdf");
 }
 
+// PDF Page Component to prevent infinite re-renders
+const PdfPage = React.memo(({ pageNum, renderPage }) => {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (canvasRef.current) {
+      renderPage(pageNum, canvasRef.current);
+    }
+  }, [pageNum, renderPage]);
+
+  return (
+    <div className="shadow-lg">
+      <canvas ref={canvasRef} className="bg-white" />
+    </div>
+  );
+});
+
 /* ================= COMPONENT ================= */
 
 export default function Player() {
@@ -56,6 +78,7 @@ export default function Player() {
   const lastSavedPercent = useRef(0);
 
   const indicesRef = useRef({ cIdx: 0, lIdx: 0 });
+  const isCompletedRef = useRef(false);
 
   /* ---------- state ---------- */
   const [course, setCourse] = useState(null);
@@ -94,7 +117,14 @@ export default function Player() {
   const [pdfLibLoaded, setPdfLibLoaded] = useState(false);
   const [pdfDoc, setPdfDoc] = useState(null);
   const [pdfPages, setPdfPages] = useState([]);
-  const [pdfScale, setPdfScale] = useState(1.5);
+  const [pdfScale, setPdfScale] = useState(1.0);
+  const [renderingPages, setRenderingPages] = useState(new Set()); // Track pages currently being rendered
+  const [renderedPages, setRenderedPages] = useState(new Set()); // Track pages that have been rendered
+  const [pdfError, setPdfError] = useState(null); // PDF loading/rendering errors
+  const [currentPdfPage, setCurrentPdfPage] = useState(1); // Current page for navigation
+  const [totalPdfPages, setTotalPdfPages] = useState(0);
+  const [pdfZoomControls, setPdfZoomControls] = useState(false); // Show zoom controls
+  const [pdfNavigationVisible, setPdfNavigationVisible] = useState(false); // Show page navigation
 
   const progressKey = `${currentChapterIndex}-${currentLessonIndex}`;
   const currentLesson =
@@ -141,7 +171,11 @@ export default function Player() {
       setIsLoadingVideo(true);
       setPdfPages([]);
       setPdfDoc(null);
-      
+      setPdfError(null);
+      setRenderedPages(new Set()); // Reset rendered pages
+      setCurrentPdfPage(1);
+      setTotalPdfPages(0);
+
       try {
         const url = currentLesson.video.startsWith("/uploads")
           ? `${serverUrl}${currentLesson.video}`
@@ -150,12 +184,14 @@ export default function Player() {
         const loadingTask = window.pdfjsLib.getDocument(url);
         const doc = await loadingTask.promise;
         setPdfDoc(doc);
+        setTotalPdfPages(doc.numPages);
 
         // Create array of page numbers [1, 2, 3...]
         const pages = Array.from({ length: doc.numPages }, (_, i) => i + 1);
         setPdfPages(pages);
       } catch (error) {
         console.error("Error loading PDF:", error);
+        setPdfError(error.message || "Failed to load PDF");
       } finally {
         setIsLoadingVideo(false);
       }
@@ -164,16 +200,59 @@ export default function Player() {
     loadPdf();
   }, [isPDF, pdfLibLoaded, currentLesson]);
 
+  // Restore PDF scroll position after all pages are rendered
+  useEffect(() => {
+    if (!isPDF || !pdfDoc || pdfPages.length === 0 || renderedPages.size !== pdfPages.length) return;
+
+    const savedData = lessonProgress[progressKey];
+    const savedPercent = savedData?.progress || 0;
+
+    if (savedPercent > 0) {
+      const container = pdfContainerRef.current;
+      if (container) {
+        // Use setTimeout to ensure layout is updated
+        setTimeout(() => {
+          const scrollHeight = container.scrollHeight;
+          const scrollTop = (savedPercent / 100) * scrollHeight - container.clientHeight;
+          container.scrollTop = Math.max(0, scrollTop);
+          setVisualTimePercent(savedPercent);
+          lastSavedPercent.current = Math.floor(savedPercent);
+        }, 0);
+      }
+    }
+  }, [isPDF, pdfDoc, pdfPages, renderedPages, lessonProgress, progressKey]);
+
+  // Restore PDF scroll position when progress changes (e.g., after save at 100%)
+  useEffect(() => {
+    if (!isPDF) return;
+    const savedData = lessonProgress[progressKey];
+    const savedPercent = savedData?.progress || 0;
+
+    if (savedPercent > 0) {
+      const container = pdfContainerRef.current;
+      if (container) {
+        setTimeout(() => {
+          const scrollHeight = container.scrollHeight;
+          const scrollTop = (savedPercent / 100) * scrollHeight - container.clientHeight;
+          container.scrollTop = Math.max(0, scrollTop);
+        }, 0);
+      }
+    }
+  }, [lessonProgress, progressKey, isPDF]);
+
   // Render PDF Pages
   const renderPage = useCallback(
     async (pageNum, canvasRef) => {
-      if (!pdfDoc || !canvasRef) return;
+      if (!pdfDoc || !canvasRef || renderingPages.has(pageNum) || renderedPages.has(pageNum)) return;
+
+      setRenderingPages(prev => new Set(prev).add(pageNum));
+
       try {
         const page = await pdfDoc.getPage(pageNum);
         const viewport = page.getViewport({ scale: pdfScale });
         const canvas = canvasRef;
         const context = canvas.getContext("2d");
-        
+
         canvas.height = viewport.height;
         canvas.width = viewport.width;
 
@@ -181,12 +260,20 @@ export default function Player() {
           canvasContext: context,
           viewport: viewport,
         };
+
         await page.render(renderContext).promise;
+        setRenderedPages(prev => new Set(prev).add(pageNum));
       } catch (err) {
         console.error("Page render error:", err);
+      } finally {
+        setRenderingPages(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(pageNum);
+          return newSet;
+        });
       }
     },
-    [pdfDoc, pdfScale]
+    [pdfDoc, pdfScale, renderingPages, renderedPages]
   );
 
   /* ================= PROGRESS LOGIC ================= */
@@ -433,14 +520,20 @@ export default function Player() {
     const isAtBottom = scrollHeight - scrolled <= 50;
     const finalPercent = isAtBottom ? 100 : newPercent;
 
+    // Prevent progress from decreasing after completion
+    if (isCompletedRef.current && finalPercent < 100) {
+      return;
+    }
+
     setVisualTimePercent(finalPercent);
 
     if (Math.floor(finalPercent) > lastSavedPercent.current) {
       lastSavedPercent.current = Math.floor(finalPercent);
       saveProgress(finalPercent);
     }
-    
-    if (finalPercent >= 100) {
+
+    if (finalPercent >= 100 && !isCompletedRef.current) {
+      isCompletedRef.current = true;
       saveProgress(100, true);
     }
   }, [saveProgress]);
@@ -515,6 +608,55 @@ export default function Player() {
     return currentLesson.duration || "0:00";
   };
 
+  // PDF Zoom Functions
+  const zoomIn = () => {
+    setPdfScale(prev => Math.min(prev + 0.25, 5));
+  };
+
+  const zoomOut = () => {
+    setPdfScale(prev => Math.max(prev - 0.25, 0.5));
+  };
+
+  const resetZoom = () => {
+    setPdfScale(1.5);
+  };
+
+  // PDF Page Navigation
+  const goToPrevPage = () => {
+    if (currentPdfPage > 1) {
+      setCurrentPdfPage(prev => prev - 1);
+      // Scroll to the page
+      const container = pdfContainerRef.current;
+      if (container) {
+        const pageHeight = container.scrollHeight / totalPdfPages;
+        container.scrollTop = (currentPdfPage - 2) * pageHeight;
+      }
+    }
+  };
+
+  const goToNextPage = () => {
+    if (currentPdfPage < totalPdfPages) {
+      setCurrentPdfPage(prev => prev + 1);
+      // Scroll to the page
+      const container = pdfContainerRef.current;
+      if (container) {
+        const pageHeight = container.scrollHeight / totalPdfPages;
+        container.scrollTop = currentPdfPage * pageHeight;
+      }
+    }
+  };
+
+  const goToPage = (pageNum) => {
+    if (pageNum >= 1 && pageNum <= totalPdfPages) {
+      setCurrentPdfPage(pageNum);
+      const container = pdfContainerRef.current;
+      if (container) {
+        const pageHeight = container.scrollHeight / totalPdfPages;
+        container.scrollTop = (pageNum - 1) * pageHeight;
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -569,14 +711,7 @@ export default function Player() {
                     {pdfDoc ? (
                       <div className="flex flex-col items-center py-4 space-y-4">
                         {pdfPages.map((pageNum) => (
-                          <div key={pageNum} className="shadow-lg">
-                            <canvas
-                              ref={(el) => {
-                                if (el) renderPage(pageNum, el);
-                              }}
-                              className="bg-white"
-                            />
-                          </div>
+                          <PdfPage key={pageNum} pageNum={pageNum} renderPage={renderPage} />
                         ))}
                       </div>
                     ) : (
@@ -588,10 +723,22 @@ export default function Player() {
                     {/* PDF Overlay Progress */}
                     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-white text-xs font-medium pointer-events-none z-50 shadow-lg">
                       <span className="flex items-center gap-2">
-                        <FiFileText size={14} /> 
+                        <FiFileText size={14} />
                         {Math.round(visualTimePercent)}% Read
                       </span>
                     </div>
+
+
+
+                    {/* PDF Error Display */}
+                    {pdfError && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-red-50 border border-red-200 rounded-lg m-4">
+                        <div className="text-center p-6">
+                          <div className="text-red-600 text-lg font-semibold mb-2">PDF Loading Error</div>
+                          <div className="text-red-500 text-sm">{pdfError}</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* --- VIDEO PLAYER --- */

@@ -7,6 +7,7 @@ import getCurrentEmployee from "../customHook/getCurrentEmployee.js";
 import { serverUrl } from "../config.js";
 import { useAuth } from "../context/authContext.jsx";
 
+
 const MyLearning = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [mandatoryFilter, setMandatoryFilter] = useState("all");
@@ -143,7 +144,7 @@ const MyLearning = () => {
             <MyLearningCourseCard
               key={enrollment._id}
               // Added safety checks (|| "") to props to ensure UI renders even with partial data
-              image={enrollment.course.images} 
+              image={enrollment.course.images}
               title={enrollment.course.title || "Untitled Course"}
               difficulty={enrollment.course.difficulty || "N/A"}
               hours={enrollment.course.hours}
@@ -154,6 +155,9 @@ const MyLearning = () => {
               status={enrollment.status}
               completedLessons={enrollment.completedLessons}
               totalLessons={enrollment.totalLessons}
+              quizCompleted={enrollment.quizCompleted}
+              quizPassed={enrollment.quizPassed}
+
               onClick={() => navigate("/course/" + enrollment.course._id)}
             />
           ))

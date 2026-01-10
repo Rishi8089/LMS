@@ -6,6 +6,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/authContext.jsx";
 import getCurrentEmployee from "../customHook/getCurrentEmployee.js";
 
+
 const Navbar = () => {
   const { logout, user, isLoggedIn } = useAuth();
   const employee = getCurrentEmployee(isLoggedIn);
