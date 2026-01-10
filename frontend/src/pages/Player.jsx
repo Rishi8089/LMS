@@ -404,6 +404,12 @@ export default function Player() {
     setCurrentChapterIndex(cIdx);
     setCurrentLessonIndex(lIdx);
     setIsPlaying(false);
+    isCompletedRef.current = false; // Reset completion flag for new lesson
+    const newKey = `${cIdx}-${lIdx}`;
+    const savedData = lessonProgress[newKey];
+    const savedPercent = savedData?.progress || 0;
+    setVisualTimePercent(savedPercent);
+    lastSavedPercent.current = Math.floor(savedPercent);
     if (window.innerWidth < 1024) setSidebarOpen(false);
   };
 
