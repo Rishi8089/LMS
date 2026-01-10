@@ -63,7 +63,7 @@ const MyLearningCourseCard = ({
                 : image
             }
             alt={title}
-            className="w-full h-48 md:h-full object-cover"
+            className="w-full h-48 md:h-full object-contain"
           />
         </div>
 

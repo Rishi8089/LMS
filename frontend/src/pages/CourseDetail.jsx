@@ -173,7 +173,7 @@ const CourseDetails = () => {
               : course.images
           }
           alt={course.title}
-          className="w-full ml-15 h-[420px] md:h-[520px] lg:h-[400px] object-fill rounded-2xl shadow-md"
+          className="w-full ml-15 h-[420px] md:h-[520px] lg:h-[400px] object-contain rounded-2xl shadow-md"
         />
 
         <div className="ml-15 flex flex-col justify-between">
