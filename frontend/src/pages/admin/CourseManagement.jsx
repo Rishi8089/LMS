@@ -382,6 +382,16 @@ const CourseManagement = () => {
     );
   }
 
+  const formatDuration = (hours) => {
+    if (!hours) return 'N/A';
+    const totalMinutes = Math.round(hours * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (h === 0) return `${m} minutes`;
+    if (m === 0) return `${h} hours`;
+    return `${h} hours ${m} minutes`;
+  };
+
   // --- Styles ---
   const labelClass =
     "block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2";
@@ -1188,7 +1198,7 @@ const CourseManagement = () => {
                         {c.title}
                       </td>
                       <td className="px-6 py-4 text-sm text-center text-gray-600">
-                        {c.hours ? `${Math.round(c.hours * 60)} Minutes` : 'N/A'}
+                        {formatDuration(c.hours)}
                       </td>
                       <td className="px-6 py-4 text-sm text-center">
                         <span

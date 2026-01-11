@@ -1,82 +1,108 @@
-import axios from 'axios';
-import Employee from '../models/EmployeeModel.js';
-import Course from '../models/CourseModel.js';
+import nodemailer from "nodemailer";
+import Enrollment from "../models/EnrollmentsModel.js";
+import dotenv from "dotenv";
 
-// Send due date reminder using EmailJS REST API
-const sendDueDateReminder = async (employeeEmail, employeeName, courseTitle, dueDate) => {
+dotenv.config();
+
+/* ======================================================
+   STABLE GMAIL TRANSPORTER (NO HANGS)
+====================================================== */
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+/* ======================================================
+   SEND 30-DAY REMINDER
+====================================================== */
+const sendDueDateReminder = async (
+  employeeEmail,
+  employeeName,
+  courseTitle,
+  dueDate
+) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: employeeEmail,
+    subject: `📢 Course Deadline Reminder: ${courseTitle}`,
+    html: `
+      <div style="font-family: system-ui, sans-serif, Arial; font-size: 16px;">
+      <p class="isSelectedEnd">Hello ${employeeName},</p>
+      <p class="isSelectedEnd">This is a friendly reminder that the deadline to complete the course <strong>${courseTitle}</strong> is approaching.</p>
+      <p class="isSelectedEnd">📅 <strong>Due Date:</strong> ${dueDate.toDateString()}<br>⏳ <strong>Days Remaining:</strong> 3 days</p>
+      <p class="isSelectedEnd">Please ensure that you complete the course before the due date to avoid missing out on your learning progress and certification.</p>
+      <p class="isSelectedEnd">If you have already completed the course, kindly ignore this email. Otherwise, we encourage you to log in and complete the remaining modules as soon as possible.</p>
+      <p class="isSelectedEnd">If you face any difficulties or need assistance, feel free to reach out to the support team.</p>
+      <p>Best regards,<br>Training Team<br>Strategy Boolean</p>
+      </div>
+
+    `
+  };
+
   try {
-    const templateParams = {
-      to_email: employeeEmail,
-      to_name: employeeName,
-      course_title: courseTitle,
-      due_date: dueDate.toDateString(),
-      days_remaining: 3
-    };
-
-    // Use EmailJS REST API directly to bypass server-side restrictions
-    const response = await axios.post(
-      `https://api.emailjs.com/api/v1.0/email/send`,
-      {
-        service_id: process.env.EMAILJS_SERVICE_ID,
-        template_id: process.env.EMAILJS_TEMPLATE_ID,
-        user_id: process.env.EMAILJS_PUBLIC_KEY,
-        template_params: templateParams,
-        accessToken: process.env.EMAILJS_PRIVATE_KEY
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      }
-    );
-
-    console.log('Email sent successfully:', response.data);
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent to ${employeeEmail}`);
     return true;
   } catch (error) {
-    console.error('Failed to send email:', error.response?.data || error.message);
+    console.error(`❌ Email failed for ${employeeEmail}`, error.message);
     return false;
   }
 };
 
-// Function to check and send due date reminders
+/* ======================================================
+   CHECK & SEND 30-DAY REMINDERS
+====================================================== */
 const checkAndSendDueDateReminders = async () => {
   try {
-    const threeDaysFromNow = new Date();
-    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+    console.log("Running daily due date reminder check...");
 
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const today = new Date();
 
-    // Find enrollments with courses due in 3 days
-    const dueEnrollments = await Enrollment.find({
+    // 📅 3 days from now
+    const threeDaysFromNow = new Date(today);
+    threeDaysFromNow.setDate(today.getDate() + 3);
+
+    // 📅 2 days from now
+    const twoDaysFromNow = new Date(today);
+    twoDaysFromNow.setDate(today.getDate() + 2);
+
+    const enrollments = await Enrollment.find({
       dueDate: {
-        $gte: tomorrow,
+        $gte: twoDaysFromNow,
         $lte: threeDaysFromNow
       },
-      status: 'enrolled'
-    }).populate('employee', 'name email').populate('course', 'title');
+      status: "enrolled"
+    })
+      .populate("employee", "name email")
+      .populate("course", "title");
 
-    console.log(`Found ${dueEnrollments.length} enrollments with courses due in 3 days`);
+    console.log(`🔍 Found ${enrollments.length} enrollments`);
 
-    for (const enrollment of dueEnrollments) {
-      if (enrollment.dueDate && enrollment.status === 'enrolled') {
-        const dueDate = new Date(enrollment.dueDate);
-        const daysDiff = Math.ceil((dueDate - new Date()) / (1000 * 60 * 60 * 24));
+    for (const enrollment of enrollments) {
 
-        if (daysDiff === 3 && enrollment.employee && enrollment.course) {
-          console.log(`Sending reminder to ${enrollment.employee.email} for course ${enrollment.course.title}`);
-          await sendDueDateReminder(
-            enrollment.employee.email,
-            enrollment.employee.name,
-            enrollment.course.title,
-            dueDate
-          );
-        }
+      // 🔴 SAFETY CHECK
+      if (!enrollment.employee || !enrollment.course) {
+        console.warn(
+          `⚠️ Skipping enrollment ${enrollment._id} (missing employee or course)`
+        );
+        continue;
       }
+
+      await sendDueDateReminder(
+        enrollment.employee.email,
+        enrollment.employee.name,
+        enrollment.course.title,
+        new Date(enrollment.dueDate)
+      );
     }
+
   } catch (error) {
-    console.error('Error in checkAndSendDueDateReminders:', error);
+    console.error("❌ Reminder job error:", error);
   }
 };
+
 
 export { sendDueDateReminder, checkAndSendDueDateReminders };
