@@ -123,7 +123,7 @@ app.get("/", (req, res) => {
 }); 
 
 // ================== Cron Job ==================
-cron.schedule("30 56 19 * * *", async () => {
+cron.schedule("00 09 * * *", async () => {
   console.log("Running daily due date reminder check...");
   await checkAndSendDueDateReminders();
 });
