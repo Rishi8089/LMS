@@ -13,6 +13,7 @@ import {
   getEnrolledEmployeesForCourse,
 } from '../controllers/adminController.js';
 import { createCourse, getCourses, updateCourse, deleteCourse, getQuizAttemptsForCourse } from '../controllers/courseController.js';
+import { generateFromFile, upload } from '../services/quizGenerator.js';
 import isAdmin from '../middleware/isAdmin.js';
 
 const adminRoute = express.Router();
@@ -48,5 +49,8 @@ adminRoute.delete('/courses/:id', isAdmin, deleteCourse);
 adminRoute.get('/mandatory-courses', isAdmin, getMandatoryCourses);
 adminRoute.get('/course/:courseId/enrolled-employees', isAdmin, getEnrolledEmployeesForCourse);
 adminRoute.get('/quiz-attempts/:courseId', isAdmin, getQuizAttemptsForCourse);
+
+// AI Quiz generation route (protected)
+adminRoute.post('/generate-ai-quiz', isAdmin, upload.single('file'), generateFromFile);
 
 export default adminRoute;

@@ -19,13 +19,27 @@ import {
 } from "react-icons/fi";
 import { Loader2 } from "lucide-react";
 import useFolderProcessor from "../../customHook/useFolderProcessor.js";
+import FileUploadQuiz from "../../components/admin/fileUploadQuiz.jsx";
 
 const CourseManagement = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [quizForm, setQuizForm] = useState(false);
+  const [aiQuizForm, setAiQuizForm] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
+  const [aiQuizData, setAiQuizData] = useState({
+    passingScore: 70,
+    timeLimitMins: 30,
+    maxAttempts: 3,
+    file: null,
+    count: 5,
+    difficulty: 'Medium',
+    shuffleQuestions: false,
+    shuffleOptions: false,
+  });
+  const [generating, setGenerating] = useState(false);
+  const [aiQuizGenerated, setAiQuizGenerated] = useState(false);
 
   // --- NEW STATE FOR QUIZ ATTEMPTS MODAL ---
   const [showAttemptsModal, setShowAttemptsModal] = useState(false);
@@ -297,6 +311,8 @@ const CourseManagement = () => {
     setEditingCourse(null);
     setShowForm(false);
     setQuizForm(false);
+    setAiQuizForm(false);
+    setAiQuizGenerated(false);
   };
 
   const handleEdit = (course) => {
@@ -333,6 +349,7 @@ const CourseManagement = () => {
         ],
       },
     });
+    setAiQuizGenerated(course.quiz && course.quiz.title === "AI Generated Quiz");
     setShowForm(true);
   };
 
@@ -398,7 +415,7 @@ const CourseManagement = () => {
   const inputClass =
     "w-full bg-white border border-gray-200 rounded-lg px-4 py-3 text-gray-800 text-sm focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all duration-200 placeholder-gray-400";
   const cardClass =
-    "bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden";
+    "bg-white rounded-t-2xl shadow-sm border border-gray-100 overflow-visible";
   const btnBlack =
     "inline-flex items-center gap-2 bg-black hover:bg-gray-800 text-white text-sm font-semibold py-3 px-6 rounded-lg transition-colors duration-200 shadow-md";
   const btnSecondary =
@@ -430,16 +447,35 @@ const CourseManagement = () => {
 
       {/* Main Content Area */}
       {showForm ? (
-        <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="max-w-5xl mx-auto">
           {!quizForm ? (
             <>
               {/* Wrapped in a fragment to fix adjacent element syntax error */}
-              <button
-                onClick={() => setQuizForm(true)}
-                className="bg-black text-white px-7 py-4 rounded-xl text-sm font-semibold ml-auto mb-6 block hover:bg-gray-800 transition"
-              >
-                + Add Quiz
-              </button>
+              <div className="flex gap-4 ml-auto mb-6">
+                {aiQuizGenerated ? (
+                  <div className="flex items-center gap-2 text-green-600 font-semibold">
+                    <FiCheckSquare className="w-6 h-6" />
+                    AI Quiz Generated
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setQuizForm(true);
+                      setAiQuizForm(true);
+                    }}
+                    className="bg-orange-600 text-white px-7 py-4 rounded-xl text-sm font-semibold hover:bg-orange-700 transition-all duration-300 ease-in-out hover:scale-105 cursor-pointer"
+                    title="Generate a quiz automatically using AI from uploaded content"
+                  >
+                    + Add AI Quiz
+                  </button>
+                )}
+                <button
+                  onClick={() => setQuizForm(true)}
+                  className="bg-black text-white px-7 py-4 rounded-xl text-sm font-semibold hover:bg-gray-800 transition-all duration-300 ease-in-out hover:scale-105 cursor-pointer"
+                >
+                  + Add Quiz
+                </button>
+              </div>
 
               <div
                 className={`${cardClass} shadow-xl border-t-4 border-t-orange-500`}
@@ -463,7 +499,7 @@ const CourseManagement = () => {
                   </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-8 space-y-8">
+                <form onSubmit={handleSubmit} className="p-8 space-y-8 pb-0">
                   {/* Section 1: Basic Information */}
                   <div className="grid grid-cols-1 gap-6">
                     <div>
@@ -824,7 +860,7 @@ const CourseManagement = () => {
                   </div>
 
                   {/* Form Actions */}
-                  <div className="pt-6 border-t border-gray-100 flex items-center justify-end gap-4 sticky bottom-0 bg-white p-4 -mx-8 -mb-8 rounded-b-2xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                  <div className="pt-6 border-t border-gray-100 flex items-center justify-end gap-4 bg-white p-4 -mx-8 -mb-8 rounded-b-2xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                     <button
                       type="button"
                       onClick={resetForm}
@@ -839,6 +875,250 @@ const CourseManagement = () => {
                 </form>
               </div>
             </>
+          ) : aiQuizForm ? (
+            /* ============================================ AI QUIZ FORM START =============================================== */
+            <div
+              className={`${cardClass} shadow-xl border-t-4 border-t-orange-500`}
+            >
+              <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-white">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <FiCheckSquare className="text-orange-500" />
+                    AI Quiz Configuration
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Generate quiz questions automatically from a document.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setAiQuizForm(false)}
+                  className="text-gray-400 hover:text-gray-600 transition"
+                >
+                  <FiX className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-8">
+                {/* AI Quiz Settings */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div>
+                    <label className={labelClass}>Passing Score (%)</label>
+                    <input
+                      type="number"
+                      value={aiQuizData.passingScore}
+                      onChange={(e) =>
+                        setAiQuizData({
+                          ...aiQuizData,
+                          passingScore: e.target.value,
+                        })
+                      }
+                      className={inputClass}
+                      placeholder="e.g. 70"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Time Limit (Minutes)</label>
+                    <input
+                      type="number"
+                      value={aiQuizData.timeLimitMins}
+                      onChange={(e) =>
+                        setAiQuizData({
+                          ...aiQuizData,
+                          timeLimitMins: e.target.value,
+                        })
+                      }
+                      className={inputClass}
+                      placeholder="0 for no limit"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Max Attempts</label>
+                    <input
+                      type="number"
+                      value={aiQuizData.maxAttempts}
+                      onChange={(e) =>
+                        setAiQuizData({
+                          ...aiQuizData,
+                          maxAttempts: e.target.value,
+                        })
+                      }
+                      className={inputClass}
+                      placeholder="e.g. 3"
+                    />
+                  </div>
+                </div>
+
+                {/* File Upload and Generation Settings */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <label className={labelClass}>Upload Document (.docx)</label>
+                    <input
+                      type="file"
+                      accept=".docx"
+                      onChange={(e) =>
+                        setAiQuizData({
+                          ...aiQuizData,
+                          file: e.target.files[0],
+                        })
+                      }
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-600 hover:file:bg-orange-100 file:border-gray-200 border border-gray-200 rounded-lg cursor-pointer bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Number of Questions</label>
+                    <input
+                      type="number"
+                      value={aiQuizData.count}
+                      onChange={(e) =>
+                        setAiQuizData({
+                          ...aiQuizData,
+                          count: e.target.value,
+                        })
+                      }
+                      className={inputClass}
+                      placeholder="e.g. 5"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <label className={labelClass}>Difficulty Level</label>
+                    <select
+                      value={aiQuizData.difficulty}
+                      onChange={(e) =>
+                        setAiQuizData({
+                          ...aiQuizData,
+                          difficulty: e.target.value,
+                        })
+                      }
+                      className={`${inputClass} appearance-none`}
+                    >
+                      <option value="Easy">Easy</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Hard">Hard</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Shuffle Questions and Options */}
+                <div className="flex gap-6 pb-4 border-b border-gray-100">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="accent-orange-600 w-4 h-4"
+                      checked={aiQuizData.shuffleQuestions}
+                      onChange={(e) =>
+                        setAiQuizData({
+                          ...aiQuizData,
+                          shuffleQuestions: e.target.checked,
+                        })
+                      }
+                    />
+                    <span className="text-sm text-gray-700">
+                      Shuffle Questions
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="accent-orange-600 w-4 h-4"
+                      checked={aiQuizData.shuffleOptions}
+                      onChange={(e) =>
+                        setAiQuizData({
+                          ...aiQuizData,
+                          shuffleOptions: e.target.checked,
+                        })
+                      }
+                    />
+                    <span className="text-sm text-gray-700">
+                      Shuffle Options
+                    </span>
+                  </label>
+                </div>
+
+                {/* Generate Button */}
+                <div className="flex justify-center">
+                  <button
+                    onClick={async () => {
+                      if (!aiQuizData.file) {
+                        toast.warn("Please select a file first");
+                        return;
+                      }
+                      setGenerating(true);
+                      const formDataToSend = new FormData();
+                      formDataToSend.append('file', aiQuizData.file);
+                      formDataToSend.append('count', aiQuizData.count);
+                      formDataToSend.append('difficulty', aiQuizData.difficulty);
+
+                      try {
+                        const res = await axios.post(`${serverUrl}/api/admin/generate-ai-quiz`, formDataToSend, {
+                          withCredentials: true,
+                          headers: { "Content-Type": "multipart/form-data" },
+                        });
+                        const data = res.data;
+                        if (data.success) {
+                          const generatedQuestions = data.quizData.map((q) => ({
+                            text: q.question,
+                            type: "mcq_single",
+                            options: q.options,
+                            correctAnswers: [q.answer],
+                            marks: 1,
+                            explanation: q.explanation,
+                          }));
+                          setFormData({
+                            ...formData,
+                            quiz: {
+                              title: "AI Generated Quiz",
+                              description: "Quiz generated from document",
+                              timeLimitMins: aiQuizData.timeLimitMins,
+                              maxAttempts: aiQuizData.maxAttempts,
+                              shuffleQuestions: aiQuizData.shuffleQuestions,
+                              shuffleOptions: aiQuizData.shuffleOptions,
+                              passingScore: aiQuizData.passingScore,
+                              published: true,
+                              questions: generatedQuestions,
+                            },
+                          });
+                          setAiQuizGenerated(true);
+                          toast.success("Quiz generated successfully!");
+                          setAiQuizForm(false);
+                        } else {
+                          toast.error("Failed to generate quiz: " + data.error);
+                        }
+                      } catch (error) {
+                        console.error("Error generating quiz:", error);
+                        toast.error("Failed to generate quiz");
+                      } finally {
+                        setGenerating(false);
+                      }
+                    }}
+                    disabled={generating}
+                    className="bg-orange-600 text-white px-8 py-3 rounded-lg text-sm font-semibold hover:bg-orange-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {generating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      "Generate Quiz"
+                    )}
+                  </button>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="pt-4 border-t border-gray-100 flex justify-end gap-4">
+                  <button
+                    onClick={() => setAiQuizForm(false)}
+                    className={btnSecondary}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+            /* =========================================== AI QUIZ FORM END ================================================= */
           ) : (
             /* ============================================ QUIZ FORM START =============================================== */
             <div
