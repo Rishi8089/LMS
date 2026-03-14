@@ -85,6 +85,7 @@ const CourseManagement = () => {
     isLoading: folderLoading,
     error: folderError,
     handleFileChange,
+    setCourseData,
   } = useFolderProcessor();
 
   useEffect(() => {

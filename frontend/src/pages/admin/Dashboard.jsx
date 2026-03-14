@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useContext } from "react";
 import axios from "axios";
-import { AuthContext } from "../../context/authContext.jsx";
+import { AuthContext } from "../../context/admin/authContext.jsx";
 import { serverUrl } from "../../config.js";
 
 const Dashboard = () => {
@@ -56,7 +56,10 @@ const Dashboard = () => {
       );
       setEnrolledEmployees({
         ...enrolledEmployees,
-        [courseId]: res.data.employees,
+        [courseId]: {
+          completed: res.data.completed,
+          notCompleted: res.data.notCompleted
+        },
       });
       setShowEmployees({ ...showEmployees, [courseId]: true });
     } catch (error) {
@@ -134,6 +137,9 @@ const Dashboard = () => {
                   <p className="text-sm text-gray-600">
                     {course.description}
                   </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Due Date: {course.dueDate ? new Date(course.dueDate).toLocaleDateString() : 'Not set'}
+                  </p>
                 </div>
 
                 <button
@@ -153,38 +159,84 @@ const Dashboard = () => {
                 className={`transition-all duration-500 ease-in-out overflow-hidden
                   ${
                     showEmployees[course._id]
-                      ? "max-h-[500px] opacity-100 mt-5"
+                      ? "max-h-[1000px] opacity-100 mt-5"
                       : "max-h-0 opacity-0"
                   }
                 `}
               >
-                <h4 className="text-md font-semibold text-gray-700 mb-3">
-                  Enrolled Employees (
-                  {enrolledEmployees[course._id]?.length || 0})
-                </h4>
+                {/* Completed Employees */}
+                <div className="mb-6">
+                  <h4 className="text-md font-semibold text-green-700 mb-3">
+                    Completed ({enrolledEmployees[course._id]?.completed?.length || 0})
+                  </h4>
+                  <ul className="space-y-3">
+                    {enrolledEmployees[course._id]?.completed?.length > 0 ? (
+                      enrolledEmployees[course._id].completed.map((employee) => (
+                        <li
+                          key={employee._id}
+                          className="flex justify-between items-center
+                            bg-green-50 p-4 rounded-xl border border-green-200"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-black">
+                              {employee.name}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {employee.email}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Due: {employee.dueDate ? new Date(employee.dueDate).toLocaleDateString() : 'Not set'}
+                            </p>
+                          </div>
+                          <span className="text-xs bg-green-600 text-white px-2 py-1 rounded-full">
+                            Completed
+                          </span>
+                        </li>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        No employees have completed this course.
+                      </p>
+                    )}
+                  </ul>
+                </div>
 
-                <ul className="space-y-3">
-                  {enrolledEmployees[course._id]?.map((employee) => (
-                    <li
-                      key={employee._id}
-                      className="flex justify-between items-center
-                        bg-orange-50 p-4 rounded-xl"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-black">
-                          {employee.name}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {employee.email}
-                        </p>
-                      </div>
-                    </li>
-                  )) || (
-                    <p className="text-sm text-gray-500">
-                      No employees enrolled.
-                    </p>
-                  )}
-                </ul>
+                {/* Not Completed Employees */}
+                <div>
+                  <h4 className="text-md font-semibold text-red-700 mb-3">
+                    Not Completed ({enrolledEmployees[course._id]?.notCompleted?.length || 0})
+                  </h4>
+                  <ul className="space-y-3">
+                    {enrolledEmployees[course._id]?.notCompleted?.length > 0 ? (
+                      enrolledEmployees[course._id].notCompleted.map((employee) => (
+                        <li
+                          key={employee._id}
+                          className="flex justify-between items-center
+                            bg-red-50 p-4 rounded-xl border border-red-200"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-black">
+                              {employee.name}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {employee.email}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Due: {employee.dueDate ? new Date(employee.dueDate).toLocaleDateString() : 'Not set'}
+                            </p>
+                          </div>
+                          <span className="text-xs bg-red-600 text-white px-2 py-1 rounded-full">
+                            Not Completed
+                          </span>
+                        </li>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        All enrolled employees have completed this course.
+                      </p>
+                    )}
+                  </ul>
+                </div>
               </div>
             </div>
           ))}

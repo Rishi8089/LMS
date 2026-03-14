@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import axios from "axios";
-import { serverUrl } from "../config.js";
+import { serverUrl } from "../../config.js";
 
 // 1. Create the AuthContext
 export const AuthContext = createContext({

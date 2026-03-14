@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/authContext.jsx";
 import getCurrentEmployee from "../customHook/getCurrentEmployee.js";
+// import { Strategy } from "../assets/assets.js";
 
 
 const Navbar = () => {

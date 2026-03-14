@@ -1,5 +1,6 @@
 import bgImage from "../assets/bg-image.jpg";
 import bgHome from "../assets/bg-home.jpg";
-import SB_Logo from "../assets/SB_Logo.jpg";
+// import SB_Logo from "../assets/SB_Logo.jpg";
+// import Strategy from "../assets/Strategy.png";
 
-export { bgImage , bgHome , SB_Logo };
+export { bgImage , bgHome };

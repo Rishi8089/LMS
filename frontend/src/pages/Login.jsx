@@ -121,7 +121,7 @@ const LoginPage = () => {
               rounded-full px-8 py-3 font-semibold
               bg-gradient-to-r from-orange-500 to-orange-600
               text-white shadow-md
-              hover:scale-[0.97] transition-transform"
+              hover:scale-[0.97] transition-transform cursor-pointer"
           >
             {loading ? <ClipLoader color="white" size={20} /> : "Login"}
           </button>
@@ -142,18 +142,18 @@ const LoginPage = () => {
           className="w-full flex items-center justify-center gap-3
             rounded-full px-8 py-3 border border-gray-300
             bg-white text-black shadow-sm
-            hover:bg-gray-50 transition"
+            hover:bg-gray-50 transition cursor-pointer"
         >
           <FaMicrosoft className="text-xl text-blue-600" />
           Continue with Microsoft
         </button>
 
         {/* Forgot */}
-        <div className="text-center mt-5">
+        {/* <div className="text-center mt-5">
           <a href="#" className="text-sm text-black hover:underline">
             Forgot password?
           </a>
-        </div>
+        </div> */}
       </div>
     </div>
   );

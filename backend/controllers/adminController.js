@@ -336,25 +336,46 @@ const getEnrolledEmployeesForCourse = async (req, res) => {
   try {
     const { courseId } = req.params;
 
+    // Validate courseId
+    if (!courseId || !courseId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: "Invalid course ID" });
+    }
+
     // Find all enrollments for this course and populate employee data
     const enrollments = await Enrollment.find({ course: courseId })
       .populate('employee', 'name email phone')
       .select('employee enrollmentDate dueDate status progress');
 
-    // Transform the data to match the expected format
-    const employees = enrollments.map(enrollment => ({
-      name: enrollment.employee.name,
-      email: enrollment.employee.email,
-      phone: enrollment.employee.phone,
-      enrolledCourses: [{
+    // Separate employees into completed and not completed
+    const completed = [];
+    const notCompleted = [];
+
+    enrollments.forEach(enrollment => {
+      if (!enrollment.employee) return; // Skip if employee is null (deleted employee)
+
+      const employeeData = {
+        _id: enrollment.employee._id,
+        name: enrollment.employee.name,
+        email: enrollment.employee.email,
+        phone: enrollment.employee.phone,
         enrollmentDate: enrollment.enrollmentDate,
         dueDate: enrollment.dueDate,
         status: enrollment.status,
         progress: enrollment.progress
-      }]
-    }));
+      };
 
-    res.status(200).json({ success: true, employees });
+      if (enrollment.status === 'completed' || enrollment.progress === 100) {
+        completed.push(employeeData);
+      } else {
+        notCompleted.push(employeeData);
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      completed,
+      notCompleted
+    });
   } catch (error) {
     console.error("Get enrolled employees error:", error);
     res.status(500).json({ message: "Server error" });

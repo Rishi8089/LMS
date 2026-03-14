@@ -163,7 +163,7 @@ const Quiz = () => {
             {isPassed ? "Congratulations! 🎉" : "Keep Learning! 📚"}
           </h2>
           <p className="text-gray-500 mb-10 text-lg">
-            You {isPassed ? "passed" : "did not pass"} the <strong>{quiz.title}</strong> quiz.
+            You {isPassed ? "passed" : "did not pass"} the <strong>quiz.</strong> 
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10 max-w-2xl mx-auto">
